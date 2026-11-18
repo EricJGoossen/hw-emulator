@@ -856,7 +856,9 @@
             "attitude",
             "switch",
             "camera",
-            "lidar"
+            "lidar",
+            "exclude",
+            "joint"
           ]
         },
         "joint": {
@@ -995,6 +997,30 @@
         },
         "max_range": {
           "type": "number"
+        },
+        "body1": {
+          "type": "string",
+          "description": "fnmatch pattern"
+        },
+        "body2": {
+          "type": "string",
+          "description": "fnmatch pattern"
+        },
+        "joints": {
+          "type": "string",
+          "description": "fnmatch pattern"
+        },
+        "armature": {
+          "type": "number",
+          "minimum": 0
+        },
+        "damping": {
+          "type": "number",
+          "minimum": 0
+        },
+        "frictionloss": {
+          "type": "number",
+          "minimum": 0
         }
       },
       "additionalProperties": false,
@@ -1067,6 +1093,35 @@
             "required": [
               "width",
               "height"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "exclude"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "body1",
+              "body2"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "joint"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "joints"
             ]
           }
         }

@@ -32,6 +32,12 @@
 //             near (0.01), far (10), period (1/30)
 //   lidar:    body, pos, quat, samples (360), fov (2*pi), min_range (0.02),
 //             max_range (12), period (0.1), noise
+//   exclude:  body1, body2 -- fnmatch patterns; no contacts between any
+//             matching pair (what a URDF can't say: an omni wheel's rollers
+//             inside the chassis's convex hull)
+//   joint:    joints (an fnmatch pattern), armature, damping, frictionloss --
+//             set on every matching joint
+#include <fnmatch.h>
 #include <mujoco/mujoco.h>
 #include <yaml-cpp/yaml.h>
 
@@ -421,10 +427,52 @@ class MujocoSim final : public ISim {
       *offheight = std::max(*offheight, h);
     } else if (s.type == "lidar") {
       AddSite(s, n + "/site");
+    } else if (s.type == "exclude") {
+      // Contact exclusions a URDF can't express: every body matching body1
+      // against every body matching body2 (fnmatch patterns).
+      const auto a = Matching(mjOBJ_BODY, s.Text("body1")), b = Matching(mjOBJ_BODY, s.Text("body2"));
+      if (a.empty() || b.empty()) {
+        throw std::invalid_argument("MuJoCo element '" + n + "': exclude matches no " +
+                                    std::string(a.empty() ? "body1 '" + s.Text("body1") : "body2 '" + s.Text("body2")) +
+                                    "'");
+      }
+      for (const auto& x : a) {
+        for (const auto& y : b) {
+          if (x == y) continue;
+          mjsExclude* e = mjs_addExclude(spec_);
+          mjs_setString(e->bodyname1, x.c_str());
+          mjs_setString(e->bodyname2, y.c_str());
+        }
+      }
+    } else if (s.type == "joint") {
+      // Joint properties a URDF can't express (armature) or that the sim
+      // overrides, for every joint matching `joints` (an fnmatch pattern).
+      const auto names = Matching(mjOBJ_JOINT, s.Text("joints"));
+      if (names.empty()) {
+        throw std::invalid_argument("MuJoCo element '" + n + "': no joint matches '" + s.Text("joints") + "'");
+      }
+      for (mjsElement* el = mjs_firstElement(spec_, mjOBJ_JOINT); el != nullptr; el = mjs_nextElement(spec_, el)) {
+        mjsJoint* j = mjs_asJoint(el);
+        if (::fnmatch(s.Text("joints").c_str(), mjs_getString(j->name), 0) != 0) continue;
+        if (s.node["armature"]) j->armature = s.Num("armature");
+        if (s.node["damping"]) j->damping = s.Num("damping");
+        if (s.node["frictionloss"]) j->frictionloss = s.Num("frictionloss");
+      }
     } else {
       throw std::invalid_argument("MuJoCo element '" + n + "': type must be motor, encoder, gyro, accel, mag, "
-                                  "attitude, switch, camera or lidar, not '" + s.type + "'");
+                                  "attitude, switch, camera, lidar, exclude or joint, not '" + s.type + "'");
     }
+  }
+
+  // The names of every element of `type` matching an fnmatch `pattern`.
+  std::vector<std::string> Matching(mjtObj type, const std::string& pattern) const {
+    std::vector<std::string> out;
+    for (mjsElement* el = mjs_firstElement(spec_, type); el != nullptr; el = mjs_nextElement(spec_, el)) {
+      const mjString* name = type == mjOBJ_BODY ? mjs_asBody(el)->name : mjs_asJoint(el)->name;
+      const char* text = mjs_getString(name);
+      if (text != nullptr && ::fnmatch(pattern.c_str(), text, 0) == 0) out.emplace_back(text);
+    }
+    return out;
   }
 
   int SensorAdr(const std::string& name) const {
