@@ -32,6 +32,8 @@ include(FetchContent)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 set(FETCHCONTENT_QUIET ON)
 
+find_package(Threads REQUIRED)
+
 # ---- dependencies ---------------------------------------------------------
 if (HWEMU_WITH_ACHILLES)
     # Achilles brings yaml-cpp 0.8.0 with it; with Achilles off, fetch it here.
@@ -90,7 +92,7 @@ target_compile_options(hwemu PRIVATE -Wall -Wextra)
 target_compile_definitions(hwemu PRIVATE
     HWEMU_SOURCE_PRESET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/presets"
 )
-find_package(Threads REQUIRED)
+
 target_link_libraries(hwemu PUBLIC Threads::Threads rt)
 
 if (HWEMU_WITH_ACHILLES)

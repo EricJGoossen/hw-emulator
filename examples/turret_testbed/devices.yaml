@@ -11,8 +11,9 @@ devices:
       encoder: yaw_encoder
       mujoco:
         yaw_motor: {type: motor, joint: yaw, torque_constant: 0.741, back_emf_constant: 0.716,
-                    resistance: 1.8, bus_voltage: 24, max_current: 3}
-        yaw_encoder: {type: encoder, joint: yaw}
+                    resistance: 1.8, bus_voltage: 24, max_current: 3,
+                    viscous_friction: 0.002, thermal_resistance: 1.5, thermal_time_constant: 120}
+        yaw_encoder: {type: encoder, joint: yaw, resolution: 0.00076699}
   - name: pitch_motor
     type: dji_can_motor
     preset: gm6020_voltage
@@ -22,8 +23,9 @@ devices:
       encoder: pitch_encoder
       mujoco:
         pitch_motor: {type: motor, joint: pitch, torque_constant: 0.741, back_emf_constant: 0.716,
-                      resistance: 1.8, bus_voltage: 24, max_current: 3}
-        pitch_encoder: {type: encoder, joint: pitch}
+                      resistance: 1.8, bus_voltage: 24, max_current: 3,
+                    viscous_friction: 0.002, thermal_resistance: 1.5, thermal_time_constant: 120}
+        pitch_encoder: {type: encoder, joint: pitch, resolution: 0.00076699}
   - name: turret_mcb
     type: turret_mcb
     transport: {bus: "loopback:can1"}

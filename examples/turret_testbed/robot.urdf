@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<!-- The turret testbed for the MuJoCo backend: the same base, yaw and pitch
+     as robot.arow (same masses and inertias, both on the joint axes), plus a
+     wall 2 m ahead for the camera to see. Every link is world-aligned at
+     rest (x forward, y left, z up), so the MuJoCo elements in devices.yaml
+     need no mount rotations. The <mujoco> block keeps the static base and
+     sets a 1 ms step, as the Achilles side uses. -->
+<robot name="turret_testbed">
+  <mujoco>
+    <compiler discardvisual="true" fusestatic="true" angle="radian"/>
+    <option timestep="0.001" integrator="Euler"/>
+  </mujoco>
+  <link name="base_link">
+    <inertial><mass value="5"/><inertia ixx="0.2" iyy="0.2" izz="0.2" ixy="0" ixz="0" iyz="0"/></inertial>
+    <collision name="base_link_geom"><geometry><box size="0.3 0.3 0.05"/></geometry></collision>
+  </link>
+  <link name="wall">
+    <inertial><mass value="1"/><inertia ixx="0.1" iyy="0.1" izz="0.1" ixy="0" ixz="0" iyz="0"/></inertial>
+    <collision name="wall_geom"><geometry><box size="0.1 2 2"/></geometry></collision>
+  </link>
+  <joint name="wall_mount" type="fixed">
+    <parent link="base_link"/><child link="wall"/>
+    <origin xyz="2.05 0 0.3"/>
+  </joint>
+  <link name="yaw_link">
+    <inertial><mass value="1.5"/><inertia ixx="0.02" iyy="0.02" izz="0.02" ixy="0" ixz="0" iyz="0"/></inertial>
+    <collision name="yaw_link_geom"><geometry><box size="0.1 0.1 0.1"/></geometry></collision>
+  </link>
+  <joint name="yaw" type="continuous">
+    <parent link="base_link"/><child link="yaw_link"/>
+    <origin xyz="0 0 0.2"/><axis xyz="0 0 1"/>
+  </joint>
+  <link name="pitch_link">
+    <inertial><mass value="1.0"/><inertia ixx="0.01" iyy="0.01" izz="0.01" ixy="0" ixz="0" iyz="0"/></inertial>
+    <collision name="pitch_link_geom"><geometry><box size="0.25 0.06 0.06"/></geometry></collision>
+  </link>
+  <joint name="pitch" type="continuous">
+    <parent link="yaw_link"/><child link="pitch_link"/>
+    <origin xyz="0 0 0"/><axis xyz="0 1 0"/>
+  </joint>
+</robot>
