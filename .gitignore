@@ -1,0 +1,6 @@
+build*/
+__pycache__/
+*.pyc
+python/hwemu/_hwemu*.so
+.cache/
+compile_commands.json
