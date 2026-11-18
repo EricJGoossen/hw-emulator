@@ -160,6 +160,8 @@ void PinBusServer::Handle(int fd) {
     case pinbus::kSpiTransfer: {
       SpiHandler handler;
       std::string gap_key, gap;
+      bool routed = false;
+      std::vector<std::uint8_t> transaction;
       {
         std::lock_guard<std::mutex> l(mutex_);
         std::string device = request->name;
@@ -174,6 +176,7 @@ void PinBusServer::Handle(int fd) {
           }
           if (selected.size() == 1) {
             device = selected[0];
+            routed = true;
           } else {
             gap_key = "spi:" + bus + (selected.empty() ? ":none" : ":many");
             gap = "SPI transfer on bus '" + bus + "' with " +
@@ -184,12 +187,23 @@ void PinBusServer::Handle(int fd) {
         }
         if (auto it = spi_.find(device); it != spi_.end()) {
           handler = it->second;
+          if (routed) {
+            auto& open = open_transactions_[device];
+            open.insert(open.end(), request->payload.begin(), request->payload.end());
+            transaction = open;
+          }
         } else if (gap.empty()) {
           gap_key = "spi:" + request->name;
           gap = "SPI transfer to '" + request->name + "', which no device models; read back 0xFF";
         }
       }
-      if (handler) {
+      if (handler && routed) {
+        // The whole transaction so far; this transfer's share is its tail.
+        auto all = handler(transaction);
+        all.resize(transaction.size(), 0);
+        reply.payload.assign(all.end() - static_cast<std::ptrdiff_t>(request->payload.size()), all.end());
+        ++transactions_;
+      } else if (handler) {
         reply.payload = handler(request->payload);
         reply.payload.resize(request->payload.size(), 0);
         ++transactions_;
@@ -251,7 +265,11 @@ void PinBusServer::Handle(int fd) {
         handlers = output_handlers_;
         modeled = accepted_outputs_.count(request->name) != 0;
         for (const auto& [bus, devices] : spi_buses_) {
-          for (const auto& d : devices) modeled = modeled || d.cs_pin == request->name;
+          for (const auto& d : devices) {
+            if (d.cs_pin != request->name) continue;
+            modeled = true;
+            open_transactions_[d.device].clear();  // either edge starts or ends a transaction
+          }
         }
       }
       for (auto& h : handlers) h(request->name, level);

@@ -155,6 +155,32 @@ TEST(PinBus, SpiGoesToWhicheverChipSelectIsLow) {
   hwemu_pinbus_close(h);
 }
 
+TEST(PinBus, ATransactionSpansTransfersUntilChipSelectRises) {
+  const std::string dir = TempDir("pinbus_txn");
+  transport::PinBusServer server(dir + "/pinbus.sock");
+  // Echoes each byte's position in the transaction, offset by its first byte.
+  server.RegisterSpi("chip", [](std::span<const std::uint8_t> tx) {
+    std::vector<std::uint8_t> rx(tx.size());
+    for (std::size_t i = 0; i < tx.size(); ++i) rx[i] = static_cast<std::uint8_t>(tx[0] + i);
+    return rx;
+  });
+  server.RegisterSpiOnBus("chip", "spi4", "Cs");
+  const int h = hwemu_pinbus_connect(server.Path().c_str(), "test");
+  std::uint8_t addr = 0x20, rx1 = 0, data[3] = {}, rx3[3] = {};
+  hwemu_gpio_write(h, "Cs", 0);
+  ASSERT_EQ(hwemu_spi_transfer(h, "bus:spi4", &addr, &rx1, 1), 0);
+  ASSERT_EQ(hwemu_spi_transfer(h, "bus:spi4", data, rx3, 3), 0);
+  hwemu_gpio_write(h, "Cs", 1);
+  EXPECT_EQ(rx1, 0x20);
+  EXPECT_EQ(rx3[0], 0x21);  // continues the same transaction
+  EXPECT_EQ(rx3[2], 0x23);
+  hwemu_gpio_write(h, "Cs", 0);
+  addr = 0x40;
+  ASSERT_EQ(hwemu_spi_transfer(h, "bus:spi4", &addr, &rx1, 1), 0);
+  EXPECT_EQ(rx1, 0x40);  // a new one after chip select rose
+  hwemu_pinbus_close(h);
+}
+
 TEST(PinBus, PwmAndAdcAndTheirGaps) {
   gaps::Reset();
   const std::string dir = TempDir("pinbus_pwm");

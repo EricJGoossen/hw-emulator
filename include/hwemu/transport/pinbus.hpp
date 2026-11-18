@@ -27,7 +27,11 @@
 // SPI is addressed by device name, or -- as the hardware does it -- by bus:
 // SPI_XFER to "bus:<bus>" goes to whichever device on that bus has its
 // chip-select pin low (the firmware drives CS with GPIO_WRITE). No device
-// selected, or more than one, is a sim gap and reads back 0xFF.
+// selected, or more than one, is a sim gap and reads back 0xFF. As on the
+// wire, a bus-routed transaction is everything between chip select falling
+// and rising: a firmware may clock it out in several SPI_XFERs (an address
+// byte, then the data), and each is answered with its own bytes of the
+// transaction so far.
 //
 // Anything a firmware asks for that nothing here serves -- an unknown SPI
 // device, a pin nobody drives, a PWM or ADC pin nothing models -- is
@@ -120,6 +124,7 @@ class PinBusServer {
     std::string device, cs_pin;
   };
   std::map<std::string, std::vector<BusDevice>> spi_buses_;
+  std::map<std::string, std::vector<std::uint8_t>> open_transactions_;  // device -> bytes since CS fell
   std::map<std::string, std::uint16_t> analog_;
   std::map<std::string, PwmHandler> pwm_handlers_;
   std::map<std::string, std::pair<float, std::uint32_t>> pwm_;
