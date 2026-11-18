@@ -37,10 +37,24 @@ py::dict FrameToDict(const sim::CameraFrame& f) {
 class PyHub {
  public:
   PyHub(const std::string& sim_yaml, const std::string& devices_yaml, std::optional<std::string> backend,
-        std::optional<std::string> runtime_dir) {
+        std::optional<std::string> runtime_dir, bool lockstep, std::optional<std::vector<std::string>> expect,
+        std::optional<double> ack_timeout, std::optional<std::string> order, std::optional<double> seconds) {
     auto config = config::LoadHubConfig(sim_yaml, devices_yaml);
     if (backend) config.sim.backend = sim::ParseBackend(*backend);
-    if (runtime_dir) config.runtime_dir = *runtime_dir;
+    if (runtime_dir) {
+      // The lockstep socket follows the runtime dir unless sim.yaml named one.
+      if (config.clock.lockstep_socket == config.runtime_dir + "/clock.sock") config.clock.lockstep_socket.clear();
+      config.runtime_dir = *runtime_dir;
+    }
+    // As the hwemu command line's --lockstep, --expect, --ack-timeout, --order, --seconds.
+    if (lockstep) config.clock.mode = clock::ClockMode::kLockstep;
+    if (config.clock.mode == clock::ClockMode::kLockstep && config.clock.lockstep_socket.empty()) {
+      config.clock.lockstep_socket = config.runtime_dir + "/clock.sock";
+    }
+    if (expect) config.clock.expected = *expect;
+    if (ack_timeout) config.clock.ack_timeout = *ack_timeout;
+    if (order) config.clock.order = clock::ParseLockstepOrder(*order);
+    if (seconds) config.duration = *seconds;
     config.sim.display = sim::DisplayMode::kHeadless;
     hub_ = std::make_unique<hub::Hub>(std::move(config));
     hub_->Start();
@@ -53,7 +67,11 @@ class PyHub {
   void Start() {
     if (thread_.joinable()) return;
     stop_ = false;
-    thread_ = std::thread([this] { hub_->Run(&stop_); });
+    done_ = false;
+    thread_ = std::thread([this] {
+      hub_->Run(&stop_);
+      done_ = true;
+    });
   }
   void Stop() {
     stop_ = true;
@@ -64,10 +82,12 @@ class PyHub {
   }
   sim::ISim& Sim() { return hub_->Sim(); }
   std::string Status() const { return hub_->StatusReport(); }
+  bool Running() const { return thread_.joinable() && !done_; }
 
  private:
   std::unique_ptr<hub::Hub> hub_;
   std::atomic<bool> stop_{false};
+  std::atomic<bool> done_{false};
   std::thread thread_;
 };
 
@@ -167,14 +187,19 @@ PYBIND11_MODULE(_hwemu, m) {
       "A headless sim from a hub's sim.yaml and devices.yaml, with no devices or transports.");
 
   py::class_<PyHub>(m, "Hub")
-      .def(py::init<const std::string&, const std::string&, std::optional<std::string>, std::optional<std::string>>(),
+      .def(py::init<const std::string&, const std::string&, std::optional<std::string>, std::optional<std::string>,
+                    bool, std::optional<std::vector<std::string>>, std::optional<double>, std::optional<std::string>,
+                    std::optional<double>>(),
            py::arg("sim_yaml"), py::arg("devices_yaml"), py::arg("backend") = py::none(),
-           py::arg("runtime_dir") = py::none())
+           py::arg("runtime_dir") = py::none(), py::kw_only(), py::arg("lockstep") = false,
+           py::arg("expect") = py::none(), py::arg("ack_timeout") = py::none(), py::arg("order") = py::none(),
+           py::arg("seconds") = py::none())
       .def("tick", &PyHub::Tick, "One hub tick; False once it should stop.")
       .def("start", &PyHub::Start, "Runs the hub on a background thread.")
       .def("stop", &PyHub::Stop)
       .def_property_readonly("sim", &PyHub::Sim, py::return_value_policy::reference_internal)
-      .def("status", &PyHub::Status);
+      .def("status", &PyHub::Status)
+      .def("running", &PyHub::Running, "True while the background thread runs (False once --seconds is up).");
 
   m.def("backends", [] {
     std::vector<std::string> out{"fake"};

@@ -18,7 +18,11 @@ URDF link and joint, and where the link sits in that joint's frame. A
 the joint's frame; a `joint:` element attaches to the joint's .arow joint.
 
 Element -> Achilles kind (MuJoCo key -> Achilles setting):
-  motor    -> dc_motor (axis [1, 0, 0], the joint's own x; every DC-motor key as is)
+  motor    -> dc_motor (axis [1, 0, 0], the joint's own x; the DC-motor keys as
+              is, except the friction: the MuJoCo backend takes
+              viscous_friction and coulomb_friction at the joint, Achilles's
+              DcMotor at the rotor, so viscous_friction * gear_ratio^2 and
+              coulomb_friction * gear_ratio)
   encoder  -> encoder, multi-turn like MuJoCo's jointpos (resolution ->
               position_resolution, noise -> position_noise_sigma,
               velocity_noise -> velocity_noise_sigma)
@@ -156,8 +160,14 @@ class Converter:
         if t == "motor":
             joint = self.joint(el["joint"], el_name)
             cfg.append(("axis", "[1, 0, 0]"))
+            g = float(el.get("gear_ratio", 1.0))
             for k in MOTOR_KEYS:
-                num(k)
+                if k == "viscous_friction" and k in el:
+                    num(k, value=float(el[k]) * g * g)  # N*m*s at the joint -> at the rotor
+                elif k == "coulomb_friction" and k in el:
+                    num(k, value=float(el[k]) * g)      # N*m at the joint -> at the rotor
+                else:
+                    num(k)
             used = {"joint", *MOTOR_KEYS}
             head = f"actuator: {el_name}\nkind: dc_motor"
         elif t == "encoder":
