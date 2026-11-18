@@ -16,6 +16,10 @@ class EglContext {
 
   // Makes it current on the calling thread.
   void MakeCurrent();
+  // Releases it from the calling thread, so another thread can make it
+  // current (the hub may step the sim on a thread other than the one that
+  // built it).
+  void Release();
 
  private:
   void* display_ = nullptr;

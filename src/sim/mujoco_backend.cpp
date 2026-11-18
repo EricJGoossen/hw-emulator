@@ -300,6 +300,7 @@ class MujocoSim final : public ISim {
       egl_->MakeCurrent();
       mjr_freeContext(&context_);
       mjv_freeScene(&scene_);
+      egl_->Release();
     }
     if (data_ != nullptr) mj_deleteData(data_);
     if (model_ != nullptr) mj_deleteModel(model_);
@@ -583,6 +584,7 @@ class MujocoSim final : public ISim {
     mjr_setBuffer(mjFB_OFFSCREEN, &context_);
     if (context_.currentBuffer != mjFB_OFFSCREEN) throw std::runtime_error("MuJoCo: no offscreen buffer");
     rendering_ = true;
+    egl_->Release();
   }
 
   // ---- stepping ------------------------------------------------------------
@@ -706,6 +708,7 @@ class MujocoSim final : public ISim {
     }
     f.capture_time = data_->time;
     ++f.sequence;
+    egl_->Release();
   }
 
   template <typename H, typename Map>

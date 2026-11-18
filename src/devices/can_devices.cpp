@@ -60,6 +60,13 @@ void DjiCanMotor::Configure(const DeviceSpec& spec) {
   max_command_ = static_cast<std::int32_t>(params.Integer("max_command", 32767));
   feedback_current_scale_ = params.Number("feedback_current_scale", command_scale_);
   reduction_ = params.Number("reduction", 1.0);
+  // +1: the motor's positive turns its joint positive about the model's joint
+  // axis; -1: it's mounted the other way round (what a firmware's "inverted"
+  // flag compensates for).
+  direction_ = params.Number("direction", 1.0) < 0 ? -1.0 : 1.0;
+  // The raw encoder count the motor reports with its joint at zero: where
+  // the rotor's magnet happens to sit, as a firmware's calibration records it.
+  encoder_offset_ = params.Number("encoder_offset", 0.0);
   default_temperature_ = params.Number("temperature", 30.0);
   feedback_.SetRate(Rate(params, "feedback_rate_hz", 1000.0));
   watchdog_.timeout = params.Number("command_timeout", 0.1);
@@ -80,7 +87,7 @@ void DjiCanMotor::OnCommand(const protocol::CanFrame& frame) {
   last_raw_ = *raw;
   ++commands_;
   const double clamped = std::clamp<double>(*raw, -max_command_, max_command_);
-  const double value = clamped * command_scale_;
+  const double value = direction_ * clamped * command_scale_;
   motor_->Command({mode_, value});
   watchdog_.Fed(now_);
 }
@@ -89,9 +96,13 @@ protocol::dji_motor::Feedback DjiCanMotor::MakeFeedback() const {
   const sim::EncoderReading enc = encoder_->Read();
   const sim::MotorReading mot = motor_->Read();
   protocol::dji_motor::Feedback fb;
-  fb.encoder = protocol::can_encoder::AngleToCounts(enc.position * reduction_, protocol::dji_motor::kEncoderCounts);
-  fb.rpm = Sat<std::int16_t>(enc.velocity * reduction_ * kRadPerSToRpm);
-  fb.current = feedback_current_scale_ > 0.0 ? Sat<std::int16_t>(mot.current / feedback_current_scale_) : 0;
+  fb.encoder = protocol::can_encoder::AngleToCounts(
+      (direction_ * enc.position * reduction_) +
+          (encoder_offset_ * 2.0 * std::numbers::pi / protocol::dji_motor::kEncoderCounts),
+      protocol::dji_motor::kEncoderCounts);
+  fb.rpm = Sat<std::int16_t>(direction_ * enc.velocity * reduction_ * kRadPerSToRpm);
+  fb.current =
+      feedback_current_scale_ > 0.0 ? Sat<std::int16_t>(direction_ * mot.current / feedback_current_scale_) : 0;
   fb.temperature = Sat<std::int8_t>(mot.temperature.value_or(default_temperature_));
   return fb;
 }
@@ -187,6 +198,7 @@ void CanEncoderDevice::Configure(const DeviceSpec& spec) {
   counts_ = static_cast<std::uint16_t>(params.Integer("counts", protocol::can_encoder::kCounts));
   gauss_ = static_cast<std::uint16_t>(params.Integer("gauss", 0));
   reduction_ = params.Number("reduction", 1.0);
+  direction_ = params.Number("direction", 1.0) < 0 ? -1.0 : 1.0;  // -1: counts run opposite the joint axis
   offset_ = params.Number("offset", 0.0);
   period_.SetRate(Rate(params, "rate_hz", 1000.0));
   encoder_name_ = bind.Text("encoder");
@@ -199,7 +211,7 @@ void CanEncoderDevice::Bind(sim::ISim& sim, Transports& t) {
 
 void CanEncoderDevice::Tick(const SimTime& now) {
   if (!period_.Due(now)) return;
-  const double angle = (encoder_->Read().position * reduction_) + offset_;
+  const double angle = (direction_ * encoder_->Read().position * reduction_) + offset_;
   if (lamprey_) {
     bus_->Send(protocol::can_encoder::EncodeLamprey(id_, protocol::can_encoder::AngleToCentidegrees(angle)));
   } else {

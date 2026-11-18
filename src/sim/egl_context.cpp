@@ -64,6 +64,8 @@ EglContext::~EglContext() {
   }
 }
 
+void EglContext::Release() { eglMakeCurrent(display_, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT); }
+
 void EglContext::MakeCurrent() {
   if (!eglMakeCurrent(display_, EGL_NO_SURFACE, EGL_NO_SURFACE, context_)) {
     throw std::runtime_error("EGL: eglMakeCurrent failed");

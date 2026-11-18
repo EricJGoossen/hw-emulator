@@ -78,6 +78,8 @@ class DjiCanMotor final : public IDevice {
   std::int32_t max_command_ = 32767;
   double feedback_current_scale_ = 0.0;  // A per LSB
   double reduction_ = 1.0;               // rotor turns per encoder-joint turn
+  double direction_ = 1.0;               // -1: mounted reversed relative to the joint axis
+  double encoder_offset_ = 0.0;          // counts reported at joint zero
   double default_temperature_ = 30.0;
   std::string motor_name_, encoder_name_;
   Every feedback_;
@@ -128,6 +130,7 @@ class CanEncoderDevice final : public IDevice {
   std::uint16_t counts_ = 4096;
   std::uint16_t gauss_ = 0;
   double reduction_ = 1.0;
+  double direction_ = 1.0;
   double offset_ = 0.0;
   Every period_;
   transport::ICanBus* bus_ = nullptr;
