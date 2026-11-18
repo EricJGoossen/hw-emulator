@@ -17,7 +17,7 @@ endforeach ()
 # The Python module and the pyrealsense2 shim, end to end.
 if (TARGET _hwemu)
     add_test(NAME python_end_to_end
-        COMMAND ${Python3_EXECUTABLE} -m unittest -v test_python
+        COMMAND ${Python3_EXECUTABLE} -m unittest discover -v -s . -p "test_*.py"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python")
     set_tests_properties(python_end_to_end PROPERTIES
         ENVIRONMENT "PYTHONPATH=${PROJECT_SOURCE_DIR}/python/shims:${PROJECT_SOURCE_DIR}/python"

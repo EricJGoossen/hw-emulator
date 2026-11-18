@@ -1,0 +1,1021 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/EricJGoossen/hw-emulator/schemas/devices.schema.json",
+  "title": "hw-emulator devices.yaml",
+  "description": "The devices the hub emulates: each a wire format (type), where it's reached (transport), which sim kinds back it (bind; bind.mujoco declares them for the MuJoCo backend) and its params (a preset's, with its own on top). Generated alongside src/devices/*.cpp's Configure(); keep the two in step.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "presets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Preset files (presets.schema.json), besides the built-in presets/."
+    },
+    "devices": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/device"
+      }
+    }
+  },
+  "required": [
+    "devices"
+  ],
+  "$defs": {
+    "device": {
+      "type": "object",
+      "required": [
+        "name",
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "dji_can_motor",
+            "tmotor_ak80",
+            "can_encoder",
+            "lamprey_encoder",
+            "turret_mcb",
+            "spi_imu",
+            "limit_switch",
+            "ld19_lidar",
+            "realsense_d435",
+            "vision_link"
+          ]
+        },
+        "preset": {
+          "type": "string"
+        },
+        "transport": {
+          "type": "object"
+        },
+        "bind": {
+          "type": "object"
+        },
+        "params": {
+          "type": "object"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "dji_can_motor"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "bus": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^0[xX][0-9a-fA-F]+$"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "bus",
+                  "id"
+                ]
+              },
+              "bind": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "motor": {
+                    "type": "string"
+                  },
+                  "encoder": {
+                    "type": "string"
+                  },
+                  "mujoco": {
+                    "$ref": "#/$defs/mujocoElements"
+                  }
+                },
+                "required": [
+                  "motor",
+                  "encoder"
+                ]
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "mode": {
+                    "enum": [
+                      "current",
+                      "voltage"
+                    ]
+                  },
+                  "gm6020_current_frame": {
+                    "type": "boolean"
+                  },
+                  "command_scale": {
+                    "type": "number"
+                  },
+                  "max_command": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^0[xX][0-9a-fA-F]+$"
+                      }
+                    ]
+                  },
+                  "feedback_current_scale": {
+                    "type": "number"
+                  },
+                  "reduction": {
+                    "type": "number"
+                  },
+                  "temperature": {
+                    "type": "number"
+                  },
+                  "feedback_rate_hz": {
+                    "type": "number"
+                  },
+                  "command_timeout": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "tmotor_ak80"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "bus": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^0[xX][0-9a-fA-F]+$"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "bus",
+                  "id"
+                ]
+              },
+              "bind": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "motor": {
+                    "type": "string"
+                  },
+                  "encoder": {
+                    "type": "string"
+                  },
+                  "mujoco": {
+                    "$ref": "#/$defs/mujocoElements"
+                  }
+                },
+                "required": [
+                  "motor",
+                  "encoder"
+                ]
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "reduction": {
+                    "type": "number"
+                  },
+                  "temperature": {
+                    "type": "number"
+                  },
+                  "command_timeout": {
+                    "type": "number"
+                  },
+                  "feedback_rate_hz": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "can_encoder"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "bus": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^0[xX][0-9a-fA-F]+$"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "bus",
+                  "id"
+                ]
+              },
+              "bind": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "encoder": {
+                    "type": "string"
+                  },
+                  "mujoco": {
+                    "$ref": "#/$defs/mujocoElements"
+                  }
+                },
+                "required": [
+                  "encoder"
+                ]
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "counts": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^0[xX][0-9a-fA-F]+$"
+                      }
+                    ]
+                  },
+                  "gauss": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^0[xX][0-9a-fA-F]+$"
+                      }
+                    ]
+                  },
+                  "reduction": {
+                    "type": "number"
+                  },
+                  "offset": {
+                    "type": "number"
+                  },
+                  "rate_hz": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "lamprey_encoder"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "bus": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^0[xX][0-9a-fA-F]+$"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "bus",
+                  "id"
+                ]
+              },
+              "bind": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "encoder": {
+                    "type": "string"
+                  },
+                  "mujoco": {
+                    "$ref": "#/$defs/mujocoElements"
+                  }
+                },
+                "required": [
+                  "encoder"
+                ]
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "counts": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^0[xX][0-9a-fA-F]+$"
+                      }
+                    ]
+                  },
+                  "gauss": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^0[xX][0-9a-fA-F]+$"
+                      }
+                    ]
+                  },
+                  "reduction": {
+                    "type": "number"
+                  },
+                  "offset": {
+                    "type": "number"
+                  },
+                  "rate_hz": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "turret_mcb"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "bus": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "bus"
+                ]
+              },
+              "bind": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "gyro": {
+                    "type": "string"
+                  },
+                  "accel": {
+                    "type": "string"
+                  },
+                  "attitude": {
+                    "type": "string"
+                  },
+                  "kicker_switch": {
+                    "type": "string"
+                  },
+                  "agitator_switch": {
+                    "type": "string"
+                  },
+                  "mujoco": {
+                    "$ref": "#/$defs/mujocoElements"
+                  }
+                },
+                "required": [
+                  "gyro",
+                  "accel",
+                  "attitude"
+                ]
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "imu_rate_hz": {
+                    "type": "number"
+                  },
+                  "status_rate_hz": {
+                    "type": "number"
+                  },
+                  "request_period": {
+                    "type": "number"
+                  },
+                  "sync_period": {
+                    "type": "number"
+                  },
+                  "temperature": {
+                    "type": "number"
+                  },
+                  "calibration_time": {
+                    "type": "number"
+                  },
+                  "initial_state": {
+                    "enum": [
+                      "calibrated",
+                      "not_calibrated",
+                      "calibrating"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "spi_imu"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "device": {
+                    "type": "string"
+                  }
+                },
+                "required": []
+              },
+              "bind": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "gyro": {
+                    "type": "string"
+                  },
+                  "accel": {
+                    "type": "string"
+                  },
+                  "mujoco": {
+                    "$ref": "#/$defs/mujocoElements"
+                  }
+                },
+                "required": []
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "chip": {
+                    "enum": [
+                      "mpu6500",
+                      "ism330dhcx",
+                      "bmi088_accel",
+                      "bmi088_gyro"
+                    ]
+                  },
+                  "temperature": {
+                    "type": "number"
+                  },
+                  "odr_hz": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "limit_switch"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "pin": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "pin"
+                ]
+              },
+              "bind": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "switch": {
+                    "type": "string"
+                  },
+                  "mujoco": {
+                    "$ref": "#/$defs/mujocoElements"
+                  }
+                },
+                "required": [
+                  "switch"
+                ]
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "active_low": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "ld19_lidar"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "port": {
+                    "type": "string"
+                  }
+                },
+                "required": []
+              },
+              "bind": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "lidar": {
+                    "type": "string"
+                  },
+                  "mujoco": {
+                    "$ref": "#/$defs/mujocoElements"
+                  }
+                },
+                "required": [
+                  "lidar"
+                ]
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "intensity": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^0[xX][0-9a-fA-F]+$"
+                      }
+                    ]
+                  },
+                  "scan_rate_hz": {
+                    "type": "number"
+                  },
+                  "min_range": {
+                    "type": "number"
+                  },
+                  "max_range": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "realsense_d435"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "shm": {
+                    "type": "string"
+                  }
+                },
+                "required": []
+              },
+              "bind": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "camera": {
+                    "type": "string"
+                  },
+                  "mujoco": {
+                    "$ref": "#/$defs/mujocoElements"
+                  }
+                },
+                "required": [
+                  "camera"
+                ]
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "depth_scale": {
+                    "type": "number"
+                  },
+                  "serial": {
+                    "type": "string"
+                  },
+                  "slots": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^0[xX][0-9a-fA-F]+$"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "vision_link"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "mcb": {
+                    "type": "string"
+                  },
+                  "otto": {
+                    "type": "string"
+                  },
+                  "log": {
+                    "type": "string"
+                  }
+                },
+                "required": []
+              },
+              "bind": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "mujoco": {
+                    "$ref": "#/$defs/mujocoElements"
+                  }
+                },
+                "required": []
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {}
+              }
+            }
+          }
+        }
+      ]
+    },
+    "mujocoElements": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/mujocoElement"
+      }
+    },
+    "mujocoElement": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "motor",
+            "encoder",
+            "gyro",
+            "accel",
+            "mag",
+            "attitude",
+            "switch",
+            "camera",
+            "lidar"
+          ]
+        },
+        "joint": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "pos": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "quat": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "noise": {
+          "type": "number",
+          "minimum": 0
+        },
+        "velocity_noise": {
+          "type": "number",
+          "minimum": 0
+        },
+        "resolution": {
+          "type": "number",
+          "minimum": 0
+        },
+        "torque_constant": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "back_emf_constant": {
+          "type": "number",
+          "minimum": 0
+        },
+        "resistance": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "bus_voltage": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "max_current": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "gear_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "gearbox_efficiency": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "viscous_friction": {
+          "type": "number",
+          "minimum": 0
+        },
+        "ambient_temperature": {
+          "type": "number"
+        },
+        "thermal_resistance": {
+          "type": "number",
+          "minimum": 0
+        },
+        "thermal_time_constant": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "press_above": {
+          "type": "number"
+        },
+        "press_below": {
+          "type": "number"
+        },
+        "hysteresis": {
+          "type": "number",
+          "minimum": 0
+        },
+        "normally_closed": {
+          "type": "boolean"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fx": {
+          "type": "number"
+        },
+        "fy": {
+          "type": "number"
+        },
+        "cx": {
+          "type": "number"
+        },
+        "cy": {
+          "type": "number"
+        },
+        "fovy": {
+          "type": "number"
+        },
+        "near": {
+          "type": "number"
+        },
+        "far": {
+          "type": "number"
+        },
+        "period": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "samples": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fov": {
+          "type": "number"
+        },
+        "min_range": {
+          "type": "number"
+        },
+        "max_range": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "motor",
+                  "encoder",
+                  "switch"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "joint"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "gyro",
+                  "accel",
+                  "mag",
+                  "attitude",
+                  "camera",
+                  "lidar"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "body"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "motor"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "torque_constant",
+              "resistance",
+              "bus_voltage",
+              "max_current"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "camera"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "width",
+              "height"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

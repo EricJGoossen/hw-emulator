@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/EricJGoossen/hw-emulator/schemas/sim.schema.json",
+  "title": "hw-emulator sim.yaml",
+  "description": "Which backend and display the hub runs, its models, its clock and its sensor windows. Paths are relative to the file.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "backend": {"enum": ["achilles", "mujoco", "fake"], "default": "achilles"},
+    "display": {"enum": ["headless", "window"], "default": "headless"},
+    "seed": {"type": "integer", "minimum": 0, "description": "Seeds every error model; unset: a random seed."},
+    "models": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "arow": {"type": "string", "description": "Achilles's scene (.arow)."},
+        "achilles_config": {"type": "string", "description": "Achilles's sim_config.yaml (gravity, ...)."},
+        "urdf": {"type": "string", "description": "MuJoCo's model: URDF or MJCF."}
+      }
+    },
+    "achilles": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "integrator": {"enum": ["semi_implicit_euler", "euler", "verlet", "velocity_verlet", "midpoint",
+                                 "implicit_midpoint", "rk4", "runge_kutta4", "implicit_fast"]}
+      }
+    },
+    "mujoco": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "elements": {"$ref": "devices.schema.json#/$defs/mujocoElements",
+                     "description": "Extra MuJoCo elements, besides those devices.yaml's bind.mujoco declare."}
+      }
+    },
+    "clock": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {"enum": ["realtime", "lockstep"], "default": "realtime"},
+        "dt": {"type": "number", "exclusiveMinimum": 0, "default": 0.001, "description": "Sim seconds per tick."},
+        "rate": {"type": "number", "exclusiveMinimum": 0, "default": 1.0, "description": "Realtime: sim seconds per wall second."},
+        "order": {"enum": ["broadcast", "sequential"], "default": "broadcast"},
+        "expected": {"type": "array", "items": {"type": "string"}, "description": "Lockstep: the participants to wait for each tick."},
+        "ack_timeout": {"type": "number", "exclusiveMinimum": 0},
+        "shm": {"type": "string", "default": "hwemu_clock"},
+        "socket": {"type": "string"}
+      }
+    },
+    "runtime_dir": {"type": "string", "default": "/tmp/hwemu"},
+    "duration": {"type": "number", "exclusiveMinimum": 0, "description": "Sim seconds to run; unset: until stopped."},
+    "status_period": {"type": "number", "minimum": 0, "description": "Wall seconds between status lines; 0: none."},
+    "windows": {
+      "type": "array",
+      "description": "Sensor windows to open (displays with sensor_windows: Achilles).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sensor"],
+        "properties": {
+          "sensor": {"type": "string"},
+          "view": {"enum": ["image", "depth", "lidar", "plot"], "default": "image"},
+          "title": {"type": "string"}
+        }
+      }
+    }
+  }
+}

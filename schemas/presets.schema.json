@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/EricJGoossen/hw-emulator/schemas/presets.schema.json",
+  "title": "hw-emulator presets file",
+  "description": "A map of preset name -> a device's params block; a device's own params override its preset's.",
+  "type": "object",
+  "additionalProperties": {"type": "object"}
+}
