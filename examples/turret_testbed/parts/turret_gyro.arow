@@ -1,0 +1,8 @@
+# The turret MCB's IMU on the pitch body, its axes turned back onto the
+# world's at rest (x forward, y left, z up).
+sensor: turret_gyro
+kind: gyroscope
+attach: {archetype: turret, joint: pitch}
+config:
+  mount: {translation: [0, 0, 0], rotation: [0.5, 0.5, 0.5, -0.5]}
+  noise_density: 0.001

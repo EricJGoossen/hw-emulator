@@ -1,0 +1,40 @@
+# DJI motor presets for dji_can_motor devices: the wire's command and
+# feedback scales, as aruw-mcb's DjiMotor uses them. `reduction` is rotor
+# turns per joint turn (the controller reports the rotor's angle and rpm).
+# A device's own params override any of these.
+
+# M3508 behind a C620: +-16384 counts = +-20 A; 3591/187 gearbox.
+m3508:
+  mode: current
+  command_scale: 0.001220703125     # 20 / 16384 A per count
+  max_command: 16384
+  feedback_current_scale: 0.001220703125
+  reduction: 19.203208556
+m3508_direct:                        # the gearbox removed (flywheels)
+  mode: current
+  command_scale: 0.001220703125
+  max_command: 16384
+  feedback_current_scale: 0.001220703125
+  reduction: 1.0
+# M2006 behind a C610: +-10000 counts = +-10 A; 36:1.
+m2006:
+  mode: current
+  command_scale: 0.001
+  max_command: 10000
+  feedback_current_scale: 0.001
+  reduction: 36.0
+# GM6020, voltage control (0x1FF/0x2FF): +-25000 counts = +-24 V.
+gm6020_voltage:
+  mode: voltage
+  command_scale: 0.00096
+  max_command: 25000
+  feedback_current_scale: 0.00018310546875   # 3 A / 16384
+  reduction: 1.0
+# GM6020, current control (0x1FE/0x2FE): +-16384 counts = +-3 A.
+gm6020_current:
+  mode: current
+  gm6020_current_frame: true
+  command_scale: 0.00018310546875
+  max_command: 16384
+  feedback_current_scale: 0.00018310546875
+  reduction: 1.0

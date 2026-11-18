@@ -1,0 +1,6 @@
+# The motors' own magnetic encoders: 8192 counts a turn.
+sensor: yaw_encoder
+kind: encoder
+attach: {archetype: turret, joint: yaw}
+config:
+  position_resolution: 0.00076699

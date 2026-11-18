@@ -1,0 +1,20 @@
+# The turret testbed's hub: run with
+#   ./build/hwemu examples/turret_testbed/sim.yaml examples/turret_testbed/devices.yaml
+backend: achilles        # or mujoco (robot.urdf)
+display: headless        # or window
+seed: 1
+models:
+  arow: robot.arow
+  achilles_config: achilles_config.yaml
+  urdf: robot.urdf
+achilles:
+  integrator: semi_implicit_euler
+clock:
+  mode: realtime         # or lockstep
+  dt: 0.001
+  rate: 1.0
+runtime_dir: /tmp/hwemu
+status_period: 1.0
+windows:
+  - {sensor: d435, view: image}
+  - {sensor: d435, view: depth}

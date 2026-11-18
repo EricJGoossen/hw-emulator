@@ -1,0 +1,6 @@
+sensor: turret_accel
+kind: accelerometer
+attach: {archetype: turret, joint: pitch}
+config:
+  mount: {translation: [0, 0, 0], rotation: [0.5, 0.5, 0.5, -0.5]}
+  noise_density: 0.01

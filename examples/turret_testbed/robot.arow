@@ -1,0 +1,72 @@
+# The turret testbed: a welded base, a yaw joint turning about the world's z
+# and a pitch joint on it turning about the yaw's y -- one GM6020 on each,
+# a turret MCB's IMU on the pitch, a pitch limit switch and a camera.
+#
+# Achilles joints turn about their own local x (joint_subspace row 0); each
+# fixed_joint_transform turns that axis where it's wanted. Both bodies carry
+# their mass on their joint axes, so gravity holds them where they are.
+archetype: turret
+includes:
+  - parts/d435.arow
+  - parts/pitch_encoder.arow
+  - parts/pitch_limit.arow
+  - parts/pitch_motor.arow
+  - parts/turret_accel.arow
+  - parts/turret_attitude.arow
+  - parts/turret_gyro.arow
+  - parts/yaw_encoder.arow
+  - parts/yaw_motor.arow
+joints:
+  - name: base
+    parent: null
+    fields:
+      joint_subspace: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      joint_activation_mask: [0]
+      fixed_joint_transform: {translation: [0, 0, 0], rotation: [1, 0, 0, 0]}
+      rigid_body_inertia: [5, 0, 0, 0, 0.2, 0.2, 0.2, 0, 0, 0]
+      joint_position: {translation: [0, 0, 0], rotation: [1, 0, 0, 0]}
+      joint_velocity: [0, 0, 0, 0, 0, 0]
+      visual_extents: [0.3, 0.05, 0.3]
+      visual_color: [0.3, 0.3, 0.3]
+      collision_pose: {translation: [0, 0, 0], rotation: [1, 0, 0, 0]}
+      collision_extents: [0, 0, 0]
+      collision_radius: [0]
+      collision_margin: [0]
+      collision_group: [0]
+      collision_mask: [0]
+  # 0.2 m up; local x turned up the world's z (-90 deg about y): yaw.
+  - name: yaw
+    parent: base
+    fields:
+      joint_subspace: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      joint_activation_mask: [1]
+      fixed_joint_transform: {translation: [0, 0, 0.2], rotation: [0.70710678, 0, -0.70710678, 0]}
+      rigid_body_inertia: [1.5, 0, 0, 0, 0.02, 0.02, 0.02, 0, 0, 0]
+      joint_position: {translation: [0, 0, 0], rotation: [1, 0, 0, 0]}
+      joint_velocity: [0, 0, 0, 0, 0, 0]
+      visual_extents: [0.1, 0.1, 0.1]
+      visual_color: [0.85, 0.3, 0.2]
+      collision_pose: {translation: [0, 0, 0], rotation: [1, 0, 0, 0]}
+      collision_extents: [0, 0, 0]
+      collision_radius: [0]
+      collision_margin: [0]
+      collision_group: [0]
+      collision_mask: [0]
+  # On the yaw, its local x turned onto the yaw's y (the world's y at rest).
+  - name: pitch
+    parent: yaw
+    fields:
+      joint_subspace: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      joint_activation_mask: [1]
+      fixed_joint_transform: {translation: [0, 0, 0], rotation: [0.70710678, 0, 0, 0.70710678]}
+      rigid_body_inertia: [1.0, 0, 0, 0, 0.01, 0.01, 0.01, 0, 0, 0]
+      joint_position: {translation: [0, 0, 0], rotation: [1, 0, 0, 0]}
+      joint_velocity: [0, 0, 0, 0, 0, 0]
+      visual_extents: [0.08, 0.08, 0.25]
+      visual_color: [0.2, 0.55, 0.9]
+      collision_pose: {translation: [0, 0, 0], rotation: [1, 0, 0, 0]}
+      collision_extents: [0, 0, 0]
+      collision_radius: [0]
+      collision_margin: [0]
+      collision_group: [0]
+      collision_mask: [0]

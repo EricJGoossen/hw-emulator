@@ -1,0 +1,52 @@
+# The turret testbed's devices, as the MCB and the Jetson see them.
+# bind.mujoco declares the MuJoCo elements each binding names on robot.urdf
+# (the Achilles backend finds the same names in robot.arow).
+devices:
+  - name: yaw_motor
+    type: dji_can_motor
+    preset: gm6020_voltage
+    transport: {bus: "loopback:can1", id: 0x205}
+    bind:
+      motor: yaw_motor
+      encoder: yaw_encoder
+      mujoco:
+        yaw_motor: {type: motor, joint: yaw, torque_constant: 0.741, back_emf_constant: 0.716,
+                    resistance: 1.8, bus_voltage: 24, max_current: 3}
+        yaw_encoder: {type: encoder, joint: yaw}
+  - name: pitch_motor
+    type: dji_can_motor
+    preset: gm6020_voltage
+    transport: {bus: "loopback:can1", id: 0x206}
+    bind:
+      motor: pitch_motor
+      encoder: pitch_encoder
+      mujoco:
+        pitch_motor: {type: motor, joint: pitch, torque_constant: 0.741, back_emf_constant: 0.716,
+                      resistance: 1.8, bus_voltage: 24, max_current: 3}
+        pitch_encoder: {type: encoder, joint: pitch}
+  - name: turret_mcb
+    type: turret_mcb
+    transport: {bus: "loopback:can1"}
+    bind:
+      gyro: turret_gyro
+      accel: turret_accel
+      attitude: turret_attitude
+      mujoco:
+        turret_gyro: {type: gyro, body: pitch_link, noise: 0.001}
+        turret_accel: {type: accel, body: pitch_link, noise: 0.01}
+        turret_attitude: {type: attitude, body: pitch_link}
+  - name: pitch_limit
+    type: limit_switch
+    transport: {pin: B12}
+    bind:
+      switch: pitch_limit
+      mujoco:
+        pitch_limit: {type: switch, joint: pitch, press_above: 0.5, hysteresis: 0.01}
+  - name: d435
+    type: realsense_d435
+    transport: {shm: d435, serial: "000000000001"}
+    bind:
+      camera: d435
+      mujoco:
+        d435: {type: camera, body: pitch_link, pos: [0, 0, 0.1], width: 640, height: 480,
+               fx: 615.0, fy: 615.0, cx: 320.0, cy: 240.0, far: 10, period: 0.0333333}

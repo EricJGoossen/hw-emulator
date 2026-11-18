@@ -1,0 +1,7 @@
+# Pressed with the barrel pitched 0.5 rad or more about its axis.
+sensor: pitch_limit
+kind: switch
+attach: {archetype: turret, joint: pitch}
+config:
+  press_above: 0.5
+  hysteresis: 0.01

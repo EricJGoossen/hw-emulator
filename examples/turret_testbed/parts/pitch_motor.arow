@@ -1,0 +1,16 @@
+actuator: pitch_motor
+kind: dc_motor
+attach: {archetype: turret, joint: pitch}
+config:
+  axis: [1, 0, 0]
+  # GM6020: Kt 0.741 N*m/A, 1.8 ohm, 13.33 rpm/V, 24 V, 3 A stall, direct drive.
+  torque_constant: 0.741
+  back_emf_constant: 0.716
+  resistance: 1.8
+  bus_voltage: 24
+  max_current: 3
+  gear_ratio: 1
+  gearbox_efficiency: 1
+  viscous_friction: 0.002
+  thermal_resistance: 1.5
+  thermal_time_constant: 120

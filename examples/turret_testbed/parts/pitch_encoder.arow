@@ -1,0 +1,5 @@
+sensor: pitch_encoder
+kind: encoder
+attach: {archetype: turret, joint: pitch}
+config:
+  position_resolution: 0.00076699

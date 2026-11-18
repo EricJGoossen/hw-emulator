@@ -1,0 +1,5 @@
+sensor: turret_attitude
+kind: attitude
+attach: {archetype: turret, joint: pitch}
+config:
+  mount: {translation: [0, 0, 0], rotation: [0.5, 0.5, 0.5, -0.5]}

@@ -1,0 +1,4 @@
+# Downward gravity: base_acceleration is minus gravity (+z pulls down -z).
+base_acceleration:
+  angular: [0, 0, 0]
+  linear: [0, 0, 9.81]
