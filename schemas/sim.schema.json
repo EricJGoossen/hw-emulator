@@ -43,7 +43,7 @@
         "rate": {"type": "number", "exclusiveMinimum": 0, "default": 1.0, "description": "Realtime: sim seconds per wall second."},
         "order": {"enum": ["broadcast", "sequential"], "default": "broadcast"},
         "expected": {"type": "array", "items": {"type": "string"}, "description": "Lockstep: the participants to wait for each tick."},
-        "ack_timeout": {"type": "number", "exclusiveMinimum": 0},
+        "ack_timeout": {"type": "number", "minimum": 0, "description": "Lockstep: seconds a participant may take to ack a tick before it's dropped; 0: wait forever (for debuggers)."},
         "shm": {"type": "string", "default": "hwemu_clock"},
         "socket": {"type": "string"}
       }

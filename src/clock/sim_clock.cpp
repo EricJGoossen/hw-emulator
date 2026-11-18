@@ -124,9 +124,15 @@ struct SimClock::Impl {
   // Waits for participant `p` to ack `tick`; false (and drops it) on timeout
   // or hang-up.
   bool AwaitAck(Participant& p, std::uint64_t tick, double timeout_s) {
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::duration<double>(timeout_s);
+    // timeout_s <= 0: wait as long as it takes (a participant stopped at a
+    // breakpoint freezes the sim rather than being dropped).
+    const bool forever = !(timeout_s > 0.0);
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                              std::chrono::duration<double>(forever ? 0.0 : timeout_s));
     while (!stop) {
-      const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now());
+      const auto left = forever ? std::chrono::milliseconds(100)
+                                : std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now());
       if (left.count() <= 0) {
         std::cerr << "[clock] participant " << p.name << " missed tick " << tick << "; dropping it\n";
         return false;

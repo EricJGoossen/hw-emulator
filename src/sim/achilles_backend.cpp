@@ -139,7 +139,9 @@ class Camera final : public ICamera {
 class Lidar final : public ILidar {
  public:
   explicit Lidar(Handle<as::Lidar> h) : h_(h) {
-    const auto& p = h_.Config().GetParams();
+    // Config() returns the kind by value: keep it alive while p refers into it.
+    const auto config = h_.Config();
+    const auto& p = config.GetParams();
     const float step = p.horizontal_fov / static_cast<float>(p.horizontal_samples);
     for (std::uint32_t c = 0; c < p.channels; ++c) {
       for (std::uint32_t s = 0; s < p.horizontal_samples; ++s) {

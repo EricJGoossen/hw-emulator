@@ -35,6 +35,15 @@ from hwemu.frame_shm import FrameShmReader  # noqa: E402
 from hwemu.serial import runtime_dir  # noqa: E402
 
 __version__ = "2.55.1+hwemu"
+
+
+def _host_seconds(sim_seconds: float) -> float:
+    """A sim capture time on the host clock otto compares it with."""
+    if getattr(time.time, "__module__", "") == "sitecustomize":
+        from hwemu.clock import process_clock
+
+        return process_clock().wall(sim_seconds)
+    return sim_seconds
 IS_HWEMU_SHIM = True
 
 
@@ -406,7 +415,9 @@ class pipeline:
         pixels = w * h
         rgb = np.frombuffer(f.payload, dtype=np.uint8, count=3 * pixels).reshape(h, w, 3)
         depth = np.frombuffer(f.payload, dtype=np.uint16, count=pixels, offset=3 * pixels).reshape(h, w)
-        ms = capture_time * 1000.0
+        # backend_timestamp is the host's clock at capture, as time.time() reads
+        # it: on sim time (sitecustomize), the same epoch; otherwise sim ms.
+        ms = (_host_seconds(capture_time)) * 1000.0
         color = None
         if stream.color in self._profiles:
             image = rgb[:, :, ::-1] if self._color_format == format.bgr8 else rgb

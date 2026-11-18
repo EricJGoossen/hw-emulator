@@ -51,7 +51,7 @@ struct ClockOptions {
   std::string lockstep_socket;  // empty: no lockstep server
   LockstepOrder order = LockstepOrder::kBroadcast;
   std::vector<std::string> expected;  // lockstep waits for these to join first
-  double ack_timeout = 5.0;           // s; a participant that misses it is dropped
+  double ack_timeout = 5.0;           // s; a participant that misses it is dropped; <= 0: never
   std::string shm_name = "hwemu_clock";  // empty: don't publish
 };
 

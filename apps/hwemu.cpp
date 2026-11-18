@@ -7,6 +7,8 @@
 #include <csignal>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -24,14 +26,17 @@ void OnSignal(int /*signal*/) { g_stop = true; }
 void Usage() {
   std::cerr << "usage: hwemu --sim sim.yaml --devices devices.yaml [--backend achilles|mujoco|fake]\n"
                "             [--headless|--window] [--seconds N] [--lockstep] [--status SECONDS]\n"
-               "             [--runtime-dir DIR] [--list-devices]\n";
+               "             [--runtime-dir DIR] [--list-devices]\n"
+               "             lockstep: [--expect NAME,NAME] [--order broadcast|sequential]\n"
+               "                       [--ack-timeout SECONDS (0: wait forever)] [--clock-shm NAME]\n";
 }
 
 }  // namespace
 
 int main(int argc, char** argv) {
   std::string sim_yaml, devices_yaml, backend, runtime_dir;
-  std::optional<double> seconds, status;
+  std::optional<double> seconds, status, ack_timeout;
+  std::optional<std::string> expect, order, clock_shm;
   bool headless = false, window = false, lockstep = false, list = false;
   const std::vector<std::string> args(argv + 1, argv + argc);
   for (std::size_t i = 0; i < args.size(); ++i) {
@@ -53,6 +58,10 @@ int main(int argc, char** argv) {
     else if (a == "--lockstep") lockstep = true;
     else if (a == "--runtime-dir") runtime_dir = value();
     else if (a == "--list-devices") list = true;
+    else if (a == "--expect") expect = value();
+    else if (a == "--order") order = value();
+    else if (a == "--ack-timeout") ack_timeout = std::stod(value());
+    else if (a == "--clock-shm") clock_shm = value();
     else if (a == "-h" || a == "--help") {
       Usage();
       return 0;
@@ -83,6 +92,16 @@ int main(int argc, char** argv) {
       config.clock.mode = hwemu::clock::ClockMode::kLockstep;
       if (config.clock.lockstep_socket.empty()) config.clock.lockstep_socket = config.runtime_dir + "/clock.sock";
     }
+    if (expect) {
+      config.clock.expected.clear();
+      std::stringstream names(*expect);
+      for (std::string n; std::getline(names, n, ',');) {
+        if (!n.empty()) config.clock.expected.push_back(n);
+      }
+    }
+    if (order) config.clock.order = hwemu::clock::ParseLockstepOrder(*order);
+    if (ack_timeout) config.clock.ack_timeout = *ack_timeout;
+    if (clock_shm) config.clock.shm_name = *clock_shm;
 
     std::signal(SIGINT, OnSignal);
     std::signal(SIGTERM, OnSignal);
