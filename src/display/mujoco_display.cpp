@@ -9,6 +9,7 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <future>
 #include <thread>
 
 #include "glfw_adapter.h"
@@ -30,13 +31,31 @@ class MujocoDisplay final : public IDisplay {
 
   void Open() override {
     if (viewer_) return;
-    viewer_ = std::make_unique<mujoco::Simulate>(std::make_unique<mujoco::GlfwAdapter>(), &camera_, &options_,
-                                                 &perturb_, /*is_passive=*/true);
-    {
-      std::lock_guard<std::recursive_mutex> l(*mutex_);
-      viewer_->Load(model_, data_, "hw-emulator");
+    // simulate's RenderLoop draws with the GL context its GlfwAdapter made
+    // current, so both live on the display thread; and Load() waits for a
+    // running RenderLoop to take the model, so it's called once the loop is
+    // up (calling it first, before the thread, deadlocked).
+    std::promise<void> created;
+    auto ready = created.get_future();
+    thread_ = std::thread([this, &created] {
+      try {
+        viewer_ = std::make_unique<mujoco::Simulate>(std::make_unique<mujoco::GlfwAdapter>(), &camera_, &options_,
+                                                     &perturb_, /*is_passive=*/true);
+      } catch (...) {
+        created.set_exception(std::current_exception());
+        return;
+      }
+      created.set_value();
+      viewer_->RenderLoop();
+    });
+    try {
+      ready.get();
+    } catch (...) {
+      thread_.join();
+      throw;
     }
-    thread_ = std::thread([this] { viewer_->RenderLoop(); });
+    std::lock_guard<std::recursive_mutex> l(*mutex_);
+    viewer_->Load(model_, data_, "hw-emulator");
   }
 
   void Close() override {
