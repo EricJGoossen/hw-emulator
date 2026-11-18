@@ -13,7 +13,7 @@
 //   header (64 B):  "HWEMUFR1" | u32 version (1) | u32 slot_count
 //                   | u64 meta_capacity | u64 payload_capacity
 //                   | u64 latest (sequence of the newest whole frame, 0: none)
-//   slot i at 64 + i * (64 + meta_capacity + payload_capacity):
+//   frame s in slot s % slot_count, at 64 + slot * (64 + meta_capacity + payload_capacity):
 //                   u64 lock (2s+1 writing frame s, 2s+2 done) | u64 sequence
 //                   | u32 meta_size | u32 payload_size | f64 timestamp
 //                   | (pad to 64) | meta | payload

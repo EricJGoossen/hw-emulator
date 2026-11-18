@@ -46,7 +46,8 @@ devices:
         pitch_limit: {type: switch, joint: pitch, press_above: 0.5, hysteresis: 0.01}
   - name: d435
     type: realsense_d435
-    transport: {shm: d435, serial: "000000000001"}
+    transport: {shm: d435}
+    params: {serial: "000000000001"}
     bind:
       camera: d435
       mujoco:
