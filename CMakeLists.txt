@@ -64,7 +64,10 @@ if (HWEMU_WITH_MUJOCO)
 endif ()
 
 # ---- the library ----------------------------------------------------------
-add_library(hwemu
+# Shared, so the hub, the Python module and device plugins (devices.yaml
+# `plugins:`) all use one copy -- one device registry, one gap report.
+add_library(hwemu SHARED
+    src/gaps.cpp
     src/protocol/crc.cpp
     src/protocol/dji_serial.cpp
     src/protocol/can_codecs.cpp
@@ -93,7 +96,7 @@ target_compile_definitions(hwemu PRIVATE
     HWEMU_SOURCE_PRESET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/presets"
 )
 
-target_link_libraries(hwemu PUBLIC Threads::Threads rt)
+target_link_libraries(hwemu PUBLIC Threads::Threads rt ${CMAKE_DL_LIBS})
 
 if (HWEMU_WITH_ACHILLES)
     target_sources(hwemu PRIVATE src/sim/achilles_backend.cpp)

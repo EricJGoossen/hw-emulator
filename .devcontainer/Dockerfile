@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libgl1-mesa-dev libegl-dev libegl1 libgles-dev libgl1-mesa-dri libglx-mesa0 mesa-utils \
         libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libxext-dev \
         xvfb xauth x11-apps imagemagick \
-        can-utils iproute2 kmod \
+        libglfw3-dev python3-jsonschema \
     && rm -rf /var/lib/apt/lists/*
 
 # Mesa's software rasterizer for headless EGL and for Xvfb.

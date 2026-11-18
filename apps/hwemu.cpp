@@ -12,6 +12,7 @@
 
 #include "hwemu/config/config.hpp"
 #include "hwemu/devices/builtin.hpp"
+#include "hwemu/gaps.hpp"
 #include "hwemu/hub/hub.hpp"
 
 namespace {
@@ -104,6 +105,9 @@ int main(int argc, char** argv) {
     }
     hub.Run(&g_stop);
     std::cerr << hub.StatusReport();
+    const auto gaps = hwemu::gaps::All();
+    std::cerr << "[hwemu] " << gaps.size() << " sim gap(s) this run (" << config.runtime_dir << "/gaps/hub.jsonl)\n";
+    for (const auto& g : gaps) std::cerr << "  - " << g.source << ": " << g.message << "\n";
   } catch (const std::exception& e) {
     std::cerr << "hwemu: " << e.what() << "\n";
     return 1;

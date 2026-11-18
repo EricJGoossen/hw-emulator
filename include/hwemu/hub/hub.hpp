@@ -44,6 +44,7 @@ class Hub {
   std::string StatusReport() const;
 
  private:
+  void LoadPlugin(const std::string& path);
   config::HubConfig config_;
   std::unique_ptr<sim::ISim> sim_;
   std::unique_ptr<clock::SimClock> clock_;

@@ -180,7 +180,7 @@ class SpiImu final : public IDevice {
   protocol::spi_imu::RegisterFile* Registers() { return registers_.get(); }
 
  private:
-  std::string chip_, device_, gyro_name_, accel_name_;
+  std::string chip_, device_, gyro_name_, accel_name_, spi_bus_, cs_pin_;
   double temperature_ = 40.0;
   Every odr_;
   std::shared_ptr<protocol::spi_imu::RegisterFile> registers_;
@@ -234,6 +234,27 @@ class RealsenseD435 final : public IDevice {
   std::uint64_t last_sequence_ = 0;
   std::uint64_t frames_ = 0;
   std::vector<std::uint16_t> depth_;
+  std::unique_ptr<transport::FrameShmWriter> shm_;
+  sim::CameraHandle camera_;
+};
+
+// A UVC camera as otto's ArducamImagesetSource captures it through
+// GStreamer: BGRx frames (the GStreamer shim, python/shims/gi, serves them to
+// the appsink). Frames go into a frame ring; a sidecar,
+// <runtime_dir>/arducam/<v4l>.json, maps the V4L path otto opens
+// (/dev/v4l/by-path/<v4l>) to the ring and the stream's size.
+class Arducam final : public IDevice {
+ public:
+  void Configure(const DeviceSpec& spec) override;
+  void Bind(sim::ISim& sim, Transports& transports) override;
+  void Tick(const SimTime& now) override;
+  std::string Status() const override;
+
+ private:
+  std::string shm_name_, camera_name_, v4l_, info_path_;
+  std::uint32_t slots_ = 4;
+  std::uint64_t last_sequence_ = 0, frames_ = 0;
+  std::vector<std::uint8_t> bgrx_;
   std::unique_ptr<transport::FrameShmWriter> shm_;
   sim::CameraHandle camera_;
 };

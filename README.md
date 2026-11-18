@@ -9,8 +9,8 @@ through a `pyrealsense2` stand-in. Two programs run against it unchanged,
 apart from their HAL:
 
 - **aruw-mcb**, built for taproot's hosted platform. It reaches the hub through
-  `client/hwemu_client.h`: SocketCAN, PTYs, the pinbus socket for SPI and
-  GPIO, and the sim clock.
+  `client/hwemu_client.h`: the Unix-socket CAN bus, PTYs, the pinbus socket
+  for SPI, GPIO, PWM and ADC, the sim clock, and gap reporting.
 - **project-otto**, which opens the hub's PTYs as its serial ports and gets
   its camera from `python/shims/pyrealsense2`.
 
@@ -19,7 +19,7 @@ apart from their HAL:
    CAN │ SPI/GPIO │ UART │ clock               UART │ pyrealsense2
        ▼          ▼      ▼                          ▼       ▼
   ┌────────────────────────────── hub ───────────────────────────────┐
-  │ transports: SocketCAN / loopback · PTYs · pinbus · frame shm ring│
+  │ transports: UDS CAN · PTYs · pinbus · frame shm ring · gap report│
   │ devices:    dji_can_motor · turret_mcb · spi_imu · ld19_lidar ·  │
   │             realsense_d435 · vision_link · limit_switch · …      │
   │ sim::ISim:  motor · encoder · gyro · accel · mag · attitude ·    │
@@ -66,10 +66,9 @@ GB per job; on a small machine, build with `-j1` or `-j2`.
 `examples/turret_testbed` is a yaw/pitch turret with two GM6020s, a turret
 MCB IMU, a pitch limit switch and a D435. It has the same masses and inertias
 in `robot.arow` (Achilles) and `robot.urdf` (MuJoCo), and the URDF adds a wall
-2 m ahead for the camera. `devices.yaml` puts the motors on `loopback:can1`,
-an in-process bus that needs no kernel module. Use `vcan0` (see
-`scripts/vcan.sh`) once a hosted MCB needs to reach the bus from another
-process.
+2 m ahead for the camera. `devices.yaml` puts the motors on `can1`, which
+the hub serves as a Unix socket, `<runtime_dir>/can1.sock`, for the hosted
+MCB to connect to.
 
 `tests/test_backend_parity.cpp` drives the testbed identically on both
 backends and checks that they agree: rotation directions, rates, currents,
@@ -103,6 +102,45 @@ before compiling:
 | `switch` | a `jointpos` sensor, thresholded with hysteresis | `joint`, `press_above` / `press_below`, `hysteresis`, `normally_closed`, `noise` |
 | `camera` | a camera, rendered offscreen; pose given x-forward/z-up, as in Achilles | `body`, `pos`, `quat`, `width`, `height`, `fx`, `fy` (or `fovy`), `cx`, `cy`, `near`, `far`, `period` |
 | `lidar` | a site, cast as an `mj_ray` fan | `body`, `pos`, `quat`, `samples`, `fov`, `min_range`, `max_range`, `period`, `noise` |
+
+## CAN, SPI and the other links
+
+- **CAN** is one transport: a Unix `SOCK_SEQPACKET` socket per bus
+  (`<runtime_dir>/<bus>.sock`, a 16-byte packet per frame; see
+  `transport/can_wire.hpp`). No root and no kernel module. Every client
+  connected to a bus hears every other client's frames, as on a real bus.
+  `loopback:<bus>` is an in-process pair, for tests.
+- **SPI** goes to a device by name, or to `bus:<bus>`, which reaches
+  whichever device on that bus has its chip-select pin low. The firmware
+  drives chip select with GPIO writes, as the hardware does
+  (`spi_imu` with `transport: {bus: spi5, cs: Ism330Nss}`).
+- **PWM and ADC** are pinbus messages too.
+
+## Sim gaps
+
+Nothing the sim doesn't model is ignored silently. Each gap is printed once,
+when it first happens, as `[hwemu GAP] <source>: <message>`, and appended
+once to `<runtime_dir>/gaps/<process>.jsonl`. Examples:
+- a CAN id no device consumes;
+- an SPI transfer with no chip selected, or to an unknown device;
+- a GPIO, PWM or ADC pin nothing models;
+- a display feature the backend lacks.
+
+The hub writes `hub.jsonl`. Firmware reports its own gaps (stubs, ports
+with no hub behind them) with `hwemu_report_gap()` into
+`$HWEMU_PROCESS.jsonl`. `gaps.hpp` has the format.
+
+## Device plugins
+
+Device types that belong to one team's robots stay out of this repo. List
+the libraries that register them under `plugins:` in `devices.yaml`; the
+hub `dlopen`s them before making devices, and each one exports
+
+```c++
+extern "C" void hwemu_register_devices(hwemu::devices::DeviceRegistry* registry);
+```
+
+Plugins link against the shared `libhwemu`, the same copy the hub uses.
 
 ## Backends and displays
 

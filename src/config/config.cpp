@@ -69,6 +69,9 @@ void LoadDevices(const std::string& devices_yaml, HubConfig* config) {
   if (const auto files = root["presets"]) {
     for (const auto& f : files) LoadPresetFile(RelativeTo(devices_yaml, f.as<std::string>()), &presets);
   }
+  if (const auto plugins = root["plugins"]) {
+    for (const auto& f : plugins) config->plugins.push_back(RelativeTo(devices_yaml, f.as<std::string>()));
+  }
 
   YAML::Node elements = config->sim.mujoco_elements ? YAML::Clone(*config->sim.mujoco_elements) : YAML::Node(YAML::NodeType::Map);
   std::map<std::string, bool> names;

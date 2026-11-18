@@ -2,6 +2,7 @@
 // memory) and the MCB <-> Jetson vision link (a PTY relay).
 #include <cmath>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -131,6 +132,59 @@ void RealsenseD435::Tick(const SimTime& now) {
 
 std::string RealsenseD435::Status() const { return "frames=" + std::to_string(frames_) + " shm=" + shm_name_; }
 
+// ---- Arducam (GStreamer BGRx) ---------------------------------------------
+void Arducam::Configure(const DeviceSpec& spec) {
+  SetIdentity(spec);
+  const std::string ctx = spec.type + " '" + spec.name + "'";
+  const Params transport(spec.transport, ctx + " transport");
+  const Params params(spec.params, ctx + " params");
+  v4l_ = transport.Text("v4l");
+  shm_name_ = transport.Text("shm", "hwemu_" + spec.name);
+  camera_name_ = Params(spec.bind, ctx + " bind").Text("camera");
+  slots_ = static_cast<std::uint32_t>(params.Integer("slots", 3));
+}
+
+void Arducam::Bind(sim::ISim& sim, Transports& t) {
+  camera_ = sim.Camera(camera_name_);
+  const sim::Intrinsics in = camera_->GetIntrinsics();
+  const std::size_t pixels = std::size_t{in.width} * in.height;
+  shm_ = std::make_unique<transport::FrameShmWriter>(shm_name_, slots_, 64, pixels * 4);
+  std::filesystem::create_directories(t.Resolve("arducam"));
+  info_path_ = t.Resolve("arducam/" + v4l_ + ".json");
+  std::ofstream info(info_path_);
+  info << "{\"shm\":\"" << shm_name_ << "\",\"v4l\":\"" << v4l_ << "\",\"width\":" << in.width
+       << ",\"height\":" << in.height << ",\"format\":\"BGRx\"}\n";
+}
+
+void Arducam::Tick(const SimTime& now) {
+  const std::uint64_t seq = camera_->Sequence();
+  if (seq == last_sequence_) return;
+  sim::CameraFrame frame;
+  if (!camera_->Read(&frame)) return;
+  last_sequence_ = seq;
+  const std::size_t pixels = std::size_t{frame.width} * frame.height;
+  bgrx_.resize(pixels * 4);
+  for (std::size_t i = 0; i < pixels; ++i) {
+    bgrx_[4 * i + 0] = frame.rgb[3 * i + 2];
+    bgrx_[4 * i + 1] = frame.rgb[3 * i + 1];
+    bgrx_[4 * i + 2] = frame.rgb[3 * i + 0];
+    bgrx_[4 * i + 3] = 0xFF;
+  }
+  // meta: u32 version 1 | u32 width | u32 height | u32 format (2: BGRx)
+  //       | u64 frame number | f64 capture time (sim s)
+  std::array<std::uint8_t, 64> meta{};
+  protocol::PutU32Le(&meta[0], 1);
+  protocol::PutU32Le(&meta[4], frame.width);
+  protocol::PutU32Le(&meta[8], frame.height);
+  protocol::PutU32Le(&meta[12], 2);
+  protocol::PutU64Le(&meta[16], frames_ + 1);
+  std::memcpy(&meta[24], &frame.capture_time, sizeof(double));
+  shm_->Write(meta, {std::span<const std::uint8_t>(bgrx_)}, now.seconds);
+  ++frames_;
+}
+
+std::string Arducam::Status() const { return "frames=" + std::to_string(frames_) + " v4l=" + v4l_; }
+
 // ---- vision link ----------------------------------------------------------
 void VisionLink::Configure(const DeviceSpec& spec) {
   SetIdentity(spec);
@@ -198,6 +252,7 @@ void RegisterBuiltinDevices(DeviceRegistry& r) {
   r.Register("limit_switch", [] { return std::make_unique<LimitSwitchDevice>(); });
   r.Register("ld19_lidar", [] { return std::make_unique<Ld19Lidar>(); });
   r.Register("realsense_d435", [] { return std::make_unique<RealsenseD435>(); });
+  r.Register("arducam", [] { return std::make_unique<Arducam>(); });
   r.Register("vision_link", [] { return std::make_unique<VisionLink>(); });
 }
 

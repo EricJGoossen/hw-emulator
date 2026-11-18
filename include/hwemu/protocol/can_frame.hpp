@@ -6,7 +6,7 @@
 
 namespace hwemu::protocol {
 
-// One classic CAN frame, as SocketCAN and modm::can::Message both carry it.
+// One classic CAN frame, as modm::can::Message carries it.
 struct CanFrame {
   std::uint32_t id = 0;
   bool extended = false;

@@ -4,12 +4,11 @@
 #
 #   scripts/dev.sh                         # a shell
 #   scripts/dev.sh scripts/build.sh        # build and test
-#   HWEMU_ROOT=1 scripts/dev.sh scripts/vcan.sh   # bring up vcan0/vcan1
 #
-# The container shares the host's network namespace (so vcan interfaces made
-# once are seen by every process and container) and its IPC namespace (so
-# /dev/shm rings are too). It runs as the calling user, so files it writes
-# stay yours; HWEMU_ROOT=1 runs as root, which vcan setup needs.
+# The container shares the host's IPC namespace, so /dev/shm rings are seen
+# by every process and container; the hub's sockets live in the runtime
+# directory, under the mounted workspace or /tmp. It runs as the calling
+# user, so files it writes stay yours; HWEMU_ROOT=1 runs as root.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 workspace="$(dirname "$here")"

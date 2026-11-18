@@ -17,6 +17,13 @@ void SpiImu::Configure(const DeviceSpec& spec) {
     throw std::invalid_argument(ctx + ": chip must be mpu6500, ism330dhcx, bmi088_accel or bmi088_gyro");
   }
   device_ = transport.Text("device", spec.name);
+  // On a shared bus, as the hardware wires it: transfers to "bus:<bus>" reach
+  // this chip while its chip-select pin is low.
+  spi_bus_ = transport.Text("bus", "");
+  cs_pin_ = transport.Text("cs", "");
+  if (spi_bus_.empty() != cs_pin_.empty()) {
+    throw std::invalid_argument(ctx + ": transport needs both bus and cs, or neither");
+  }
   temperature_ = params.Number("temperature", 40.0);
   odr_.SetRate(params.Number("odr_hz", 1000.0));
   gyro_name_ = bind.Text("gyro", "");
@@ -31,6 +38,7 @@ void SpiImu::Bind(sim::ISim& sim, Transports& t) {
   if (!accel_name_.empty()) accel_ = sim.Accel(accel_name_);
   auto registers = registers_;
   t.PinBus().RegisterSpi(device_, [registers](std::span<const std::uint8_t> tx) { return registers->Transfer(tx); });
+  if (!spi_bus_.empty()) t.PinBus().RegisterSpiOnBus(device_, spi_bus_, cs_pin_);
 }
 
 void SpiImu::Tick(const SimTime& now) {

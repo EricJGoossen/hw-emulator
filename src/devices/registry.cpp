@@ -7,6 +7,7 @@ namespace hwemu::devices {
 
 Transports::Transports(std::string runtime_dir) : runtime_dir_(std::move(runtime_dir)) {
   std::filesystem::create_directories(runtime_dir_);
+  can_.SetSocketDir(runtime_dir_);
 }
 
 Transports::~Transports() = default;

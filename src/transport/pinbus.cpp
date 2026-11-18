@@ -1,5 +1,9 @@
 #include "hwemu/transport/pinbus.hpp"
 
+#include <cstring>
+
+#include "hwemu/gaps.hpp"
+
 #include <cerrno>
 #include <cstring>
 #include <filesystem>
@@ -86,6 +90,32 @@ void PinBusServer::Notify(const std::string& pin, bool level) {
   }
 }
 
+void PinBusServer::RegisterSpiOnBus(const std::string& device, const std::string& bus, const std::string& cs_pin) {
+  std::lock_guard<std::mutex> l(mutex_);
+  spi_buses_[bus].push_back({device, cs_pin});
+}
+
+void PinBusServer::SetAnalog(const std::string& pin, std::uint16_t counts) {
+  std::lock_guard<std::mutex> l(mutex_);
+  analog_[pin] = counts;
+}
+
+void PinBusServer::OnPwm(const std::string& pin, PwmHandler handler) {
+  std::lock_guard<std::mutex> l(mutex_);
+  pwm_handlers_[pin] = std::move(handler);
+}
+
+std::pair<float, std::uint32_t> PinBusServer::Pwm(const std::string& pin) const {
+  std::lock_guard<std::mutex> l(mutex_);
+  auto it = pwm_.find(pin);
+  return it == pwm_.end() ? std::pair<float, std::uint32_t>{0.0F, 0} : it->second;
+}
+
+void PinBusServer::AcceptOutput(const std::string& pin) {
+  std::lock_guard<std::mutex> l(mutex_);
+  accepted_outputs_.insert(pin);
+}
+
 void PinBusServer::Run() {
   while (!stop_) {
     std::vector<pollfd> fds;
@@ -129,29 +159,106 @@ void PinBusServer::Handle(int fd) {
       break;
     case pinbus::kSpiTransfer: {
       SpiHandler handler;
+      std::string gap_key, gap;
       {
         std::lock_guard<std::mutex> l(mutex_);
-        if (auto it = spi_.find(request->name); it != spi_.end()) handler = it->second;
+        std::string device = request->name;
+        if (device.rfind("bus:", 0) == 0) {
+          const std::string bus = device.substr(4);
+          std::vector<std::string> selected;
+          if (auto b = spi_buses_.find(bus); b != spi_buses_.end()) {
+            for (const auto& d : b->second) {
+              auto cs = outputs_.find(d.cs_pin);
+              if (cs != outputs_.end() && !cs->second) selected.push_back(d.device);
+            }
+          }
+          if (selected.size() == 1) {
+            device = selected[0];
+          } else {
+            gap_key = "spi:" + bus + (selected.empty() ? ":none" : ":many");
+            gap = "SPI transfer on bus '" + bus + "' with " +
+                  (selected.empty() ? std::string("no chip select low") : "more than one chip select low") +
+                  "; read back 0xFF";
+            device.clear();
+          }
+        }
+        if (auto it = spi_.find(device); it != spi_.end()) {
+          handler = it->second;
+        } else if (gap.empty()) {
+          gap_key = "spi:" + request->name;
+          gap = "SPI transfer to '" + request->name + "', which no device models; read back 0xFF";
+        }
       }
       if (handler) {
         reply.payload = handler(request->payload);
         reply.payload.resize(request->payload.size(), 0);
         ++transactions_;
       } else {
+        gaps::Report("pinbus", gap_key, gap);
         reply.status = 1;
         reply.payload.assign(request->payload.size(), 0xFF);
       }
       break;
     }
+    case pinbus::kPwmWrite: {
+      float duty = 0;
+      std::uint32_t hz = 0;
+      if (request->payload.size() >= 8) {
+        std::memcpy(&duty, request->payload.data(), 4);
+        std::memcpy(&hz, request->payload.data() + 4, 4);
+      }
+      PwmHandler handler;
+      bool accepted = false;
+      {
+        std::lock_guard<std::mutex> l(mutex_);
+        pwm_[request->name] = {duty, hz};
+        if (auto it = pwm_handlers_.find(request->name); it != pwm_handlers_.end()) handler = it->second;
+        accepted = accepted_outputs_.count(request->name) != 0;
+      }
+      if (handler) {
+        handler(request->name, duty, hz);
+      } else if (!accepted) {
+        gaps::Report("pinbus", "pwm:" + request->name,
+                     "PWM written on pin '" + request->name + "', which nothing in the sim models");
+      }
+      break;
+    }
+    case pinbus::kAdcRead: {
+      bool known = false;
+      std::uint16_t counts = 0;
+      {
+        std::lock_guard<std::mutex> l(mutex_);
+        if (auto it = analog_.find(request->name); it != analog_.end()) {
+          known = true;
+          counts = it->second;
+        }
+      }
+      if (!known) {
+        reply.status = 1;
+        gaps::Report("pinbus", "adc:" + request->name,
+                     "ADC read on pin '" + request->name + "', which nothing in the sim drives; read 0");
+      }
+      reply.payload = {static_cast<std::uint8_t>(counts & 0xFF), static_cast<std::uint8_t>(counts >> 8)};
+      break;
+    }
     case pinbus::kGpioWrite: {
       const bool level = !request->payload.empty() && request->payload[0] != 0;
       std::vector<OutputHandler> handlers;
+      bool modeled = false;
       {
         std::lock_guard<std::mutex> l(mutex_);
         outputs_[request->name] = level;
         handlers = output_handlers_;
+        modeled = accepted_outputs_.count(request->name) != 0;
+        for (const auto& [bus, devices] : spi_buses_) {
+          for (const auto& d : devices) modeled = modeled || d.cs_pin == request->name;
+        }
       }
       for (auto& h : handlers) h(request->name, level);
+      if (!modeled && handlers.empty()) {
+        gaps::Report("pinbus", "gpio-out:" + request->name,
+                     "GPIO output '" + request->name + "' written, but nothing in the sim reacts to it");
+      }
       break;
     }
     case pinbus::kGpioRead: {
@@ -163,6 +270,8 @@ void PinBusServer::Handle(int fd) {
       } else {
         reply.status = 1;
         reply.payload = {0};
+        gaps::Report("pinbus", "gpio-in:" + request->name,
+                     "GPIO input '" + request->name + "' read, but nothing in the sim drives it; read low");
       }
       break;
     }

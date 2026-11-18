@@ -11,7 +11,7 @@
 //   - name: yaw_motor
 //     type: dji_can_motor
 //     preset: gm6020_voltage          # a params block from a presets file
-//     transport: {bus: vcan0, id: 0x205}
+//     transport: {bus: can1, id: 0x205}
 //     bind: {motor: yaw_motor, encoder: yaw_encoder}
 //     params: {reduction: 1.0}
 //

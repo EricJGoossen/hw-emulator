@@ -5,7 +5,7 @@ devices:
   - name: yaw_motor
     type: dji_can_motor
     preset: gm6020_voltage
-    transport: {bus: "loopback:can1", id: 0x205}
+    transport: {bus: can1, id: 0x205}
     bind:
       motor: yaw_motor
       encoder: yaw_encoder
@@ -17,7 +17,7 @@ devices:
   - name: pitch_motor
     type: dji_can_motor
     preset: gm6020_voltage
-    transport: {bus: "loopback:can1", id: 0x206}
+    transport: {bus: can1, id: 0x206}
     bind:
       motor: pitch_motor
       encoder: pitch_encoder
@@ -28,7 +28,7 @@ devices:
         pitch_encoder: {type: encoder, joint: pitch, resolution: 0.00076699}
   - name: turret_mcb
     type: turret_mcb
-    transport: {bus: "loopback:can1"}
+    transport: {bus: can1}
     bind:
       gyro: turret_gyro
       accel: turret_accel

@@ -1,7 +1,14 @@
 #include "hwemu/hub/hub.hpp"
 
+#include <dlfcn.h>
+#include <unistd.h>
+
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <sstream>
+
+#include "hwemu/gaps.hpp"
 
 namespace hwemu::hub {
 
@@ -12,6 +19,8 @@ Hub::Hub(config::HubConfig config, std::unique_ptr<sim::ISim> sim)
   }
   clock_ = std::make_unique<clock::SimClock>(config_.clock);
   transports_ = std::make_unique<devices::Transports>(config_.runtime_dir);
+  gaps::Configure(config_.runtime_dir, "hub");
+  for (const auto& plugin : config_.plugins) LoadPlugin(plugin);
   for (const auto& spec : config_.devices) {
     auto device = devices::DeviceRegistry::Instance().Make(spec.type);
     device->Configure(spec);
@@ -19,7 +28,22 @@ Hub::Hub(config::HubConfig config, std::unique_ptr<sim::ISim> sim)
   }
 }
 
-Hub::~Hub() = default;
+Hub::~Hub() {
+  std::error_code ignored;
+  std::filesystem::remove(std::filesystem::path(config_.runtime_dir) / "ready", ignored);
+}
+
+void Hub::LoadPlugin(const std::string& path) {
+  // RTLD_GLOBAL: a plugin's devices may share types with another plugin.
+  void* handle = ::dlopen(path.c_str(), RTLD_NOW | RTLD_GLOBAL);
+  if (handle == nullptr) throw std::runtime_error("plugin " + path + ": " + ::dlerror());
+  using Register = void (*)(devices::DeviceRegistry*);
+  auto reg = reinterpret_cast<Register>(::dlsym(handle, "hwemu_register_devices"));
+  if (reg == nullptr) {
+    throw std::runtime_error("plugin " + path + " has no extern \"C\" hwemu_register_devices(DeviceRegistry*)");
+  }
+  reg(&devices::DeviceRegistry::Instance());
+}
 
 void Hub::Start() {
   for (auto& d : devices_) {
@@ -36,17 +60,25 @@ void Hub::Start() {
         windows->Show(w.sensor, w.view, w.title);
       }
     } else if (!config_.windows.empty()) {
-      std::cerr << "[hub] this backend's display has no per-sensor windows; ignoring `windows`\n";
+      gaps::Report("display", "sensor-windows",
+                   "this backend's display has no per-sensor windows; sim.yaml `windows` not shown");
     }
   }
+  // The pinbus always listens, so a firmware's GPIO and ADC reads are
+  // answered (or reported as gaps) even with no device using it.
+  transports_->PinBus();
   last_draw_ = last_status_ = std::chrono::steady_clock::now();
   started_ = true;
+  // Everything is listening: a launcher waiting on this file can start the
+  // firmware and otto.
+  std::ofstream(std::filesystem::path(config_.runtime_dir) / "ready") << ::getpid() << "\n";
 }
 
 bool Hub::Tick() {
   if (!started_) Start();
   if (stop_ || !clock_->WaitForNextTick()) return false;
   const clock::SimTime now = clock_->Now();
+  gaps::SetTime(now.seconds);
   transports_->Router().Poll();
   for (auto& d : devices_) d->Tick(now);
   auto* display = sim_->Display();

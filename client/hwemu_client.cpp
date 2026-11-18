@@ -5,25 +5,26 @@
 #include <cerrno>
 #include <chrono>
 #include <cstdlib>
+#include <cstdio>
 #include <cstring>
 #include <deque>
 #include <map>
 #include <mutex>
+#include <set>
 #include <string>
 
 #include <fcntl.h>
-#include <linux/can.h>
-#include <linux/can/raw.h>
-#include <net/if.h>
-#include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <termios.h>
 #include <unistd.h>
 
+#include "hwemu/transport/can_wire.hpp"
 #include "hwemu/transport/uds_wire.hpp"
 
 namespace wire = hwemu::transport::wire;
+namespace can_wire = hwemu::transport::can_wire;
 
 namespace {
 
@@ -103,43 +104,33 @@ int hwemu_serial_open(const char* path) {
   return fd;
 }
 
-int hwemu_can_open(const char* ifname) {
-  const int fd = ::socket(PF_CAN, SOCK_RAW, CAN_RAW);
+int hwemu_can_open(const char* bus) {
+  // The hub's UDS CAN bus (transport/can_bus.hpp): <runtime dir>/<bus>.sock,
+  // or an absolute socket path.
+  const std::string name(bus);
+  const std::string path = !name.empty() && name[0] == '/' ? name : Join(RuntimeDir(), name + ".sock");
+  const int fd = wire::Connect(path);
   if (fd < 0) return -1;
-  ifreq ifr{};
-  std::strncpy(ifr.ifr_name, ifname, IFNAMSIZ - 1);
-  if (::ioctl(fd, SIOCGIFINDEX, &ifr) < 0) {
-    ::close(fd);
-    return -1;
-  }
-  sockaddr_can addr{};
-  addr.can_family = AF_CAN;
-  addr.can_ifindex = ifr.ifr_ifindex;
-  if (::bind(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
-    ::close(fd);
-    return -1;
-  }
   ::fcntl(fd, F_SETFL, ::fcntl(fd, F_GETFL) | O_NONBLOCK);
   return fd;
 }
 
 int hwemu_can_send(int fd, uint32_t id, int extended, const uint8_t* data, uint8_t len) {
-  can_frame f{};
-  f.can_id = extended != 0 ? ((id & CAN_EFF_MASK) | CAN_EFF_FLAG) : (id & CAN_SFF_MASK);
-  f.can_dlc = len > 8 ? 8 : len;
-  if (f.can_dlc > 0) std::memcpy(f.data, data, f.can_dlc);
-  return ::write(fd, &f, sizeof(f)) == static_cast<ssize_t>(sizeof(f)) ? 0 : -1;
+  const auto p = can_wire::Pack(id, extended != 0, false, data, len);
+  return ::send(fd, p.data(), p.size(), MSG_NOSIGNAL) == static_cast<ssize_t>(p.size()) ? 0 : -1;
 }
 
 int hwemu_can_recv(int fd, uint32_t* id, int* extended, uint8_t* data, uint8_t* len) {
-  can_frame f{};
-  const ssize_t n = ::read(fd, &f, sizeof(f));
+  std::uint8_t buf[64];
+  const ssize_t n = ::recv(fd, buf, sizeof(buf), MSG_DONTWAIT);
   if (n < 0) return errno == EAGAIN || errno == EWOULDBLOCK ? 0 : -1;
-  if (n != static_cast<ssize_t>(sizeof(f))) return 0;
-  *extended = (f.can_id & CAN_EFF_FLAG) != 0 ? 1 : 0;
-  *id = f.can_id & (*extended != 0 ? CAN_EFF_MASK : CAN_SFF_MASK);
-  *len = f.can_dlc;
-  std::memcpy(data, f.data, f.can_dlc > 8 ? 8 : f.can_dlc);
+  if (n == 0) return -1;  // the hub went away
+  can_wire::Unpacked u;
+  if (!can_wire::Unpack(buf, static_cast<std::size_t>(n), &u)) return 0;
+  *id = u.id;
+  *extended = u.extended ? 1 : 0;
+  *len = u.len;
+  std::memcpy(data, u.data.data(), u.len);
   return 1;
 }
 
@@ -203,14 +194,64 @@ int hwemu_gpio_write(int handle, const char* pin, int level) {
   return reply.status == 0 ? 0 : -1;
 }
 
+int hwemu_pwm_write(int handle, const char* pin, float duty, uint32_t frequency_hz) {
+  PinBusConnection* c = Connection(handle);
+  if (c == nullptr) return -1;
+  std::vector<std::uint8_t> payload(8);
+  std::memcpy(payload.data(), &duty, 4);
+  std::memcpy(payload.data() + 4, &frequency_hz, 4);
+  wire::Message reply;
+  if (!Request(c, {0x07, 0, 0, pin, payload}, &reply)) return -1;
+  return reply.status == 0 ? 0 : -1;
+}
+
+int hwemu_adc_read(int handle, const char* pin) {
+  PinBusConnection* c = Connection(handle);
+  if (c == nullptr) return -1;
+  wire::Message reply;
+  if (!Request(c, {0x08, 0, 0, pin, {}}, &reply) || reply.payload.size() < 2) return -1;
+  // A pin nothing drives reads 0 (the hub reports that gap itself).
+  return reply.payload[0] | (reply.payload[1] << 8);
+}
+
+void hwemu_report_gap(const char* source, const char* key, const char* message) {
+  static std::mutex m;
+  static std::set<std::string> seen;
+  std::lock_guard<std::mutex> l(m);
+  if (!seen.insert(std::string(source) + '\x1f' + key).second) return;
+  std::fprintf(stderr, "[hwemu GAP] %s: %s\n", source, message);
+  const char* process = std::getenv("HWEMU_PROCESS");
+  const std::string dir = Join(RuntimeDir(), "gaps");
+  ::mkdir(dir.c_str(), 0755);
+  const std::string path = Join(dir, std::string(process != nullptr && *process != '\0' ? process : "client") + ".jsonl");
+  if (FILE* f = std::fopen(path.c_str(), "a")) {
+    auto json = [](const char* text) {
+      std::string out = "\"";
+      for (const char* p = text; *p != '\0'; ++p) {
+        if (*p == '"' || *p == '\\') out += '\\';
+        if (static_cast<unsigned char>(*p) >= 0x20) out += *p;
+      }
+      return out + "\"";
+    };
+    std::fprintf(f, "{\"process\":%s,\"source\":%s,\"key\":%s,\"message\":%s,\"time\":%.6f}\n",
+                 json(process != nullptr ? process : "client").c_str(), json(source).c_str(), json(key).c_str(),
+                 json(message).c_str(), static_cast<double>(hwemu_clock_micros()) * 1e-6);
+    std::fclose(f);
+  }
+}
+
 uint64_t hwemu_clock_micros(void) {
   static std::mutex m;
   static ClockShm shm;
   static const auto start = std::chrono::steady_clock::now();
+  static auto next_try = start;
+  static bool warned = false;
   {
     std::lock_guard<std::mutex> l(m);
-    if (shm.base == nullptr && !shm.tried) {
-      shm.tried = true;
+    // Keep looking (at most every 100 ms) until the hub's clock appears.
+    const auto now = std::chrono::steady_clock::now();
+    if (shm.base == nullptr && now >= next_try) {
+      next_try = now + std::chrono::milliseconds(100);
       const char* env = std::getenv("HWEMU_CLOCK_SHM");
       const std::string name = std::string("/") + (env != nullptr ? env : "hwemu_clock");
       const int fd = ::shm_open(name.c_str(), O_RDONLY, 0);
@@ -218,6 +259,12 @@ uint64_t hwemu_clock_micros(void) {
         void* p = ::mmap(nullptr, 64, PROT_READ, MAP_SHARED, fd, 0);
         ::close(fd);
         if (p != MAP_FAILED && std::memcmp(p, "HWEMUCK1", 8) == 0) shm.base = static_cast<const std::uint8_t*>(p);
+      }
+      if (shm.base == nullptr && !warned) {
+        warned = true;
+        // Not through hwemu_report_gap: it stamps reports with this clock.
+        std::fprintf(stderr, "[hwemu GAP] clock: no hub clock (/dev/shm%s); using wall time until it appears\n",
+                     name.c_str());
       }
     }
   }

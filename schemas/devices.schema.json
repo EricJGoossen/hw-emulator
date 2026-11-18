@@ -18,6 +18,13 @@
       "items": {
         "$ref": "#/$defs/device"
       }
+    },
+    "plugins": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Shared libraries registering more device types (extern \"C\" hwemu_register_devices), relative to this file."
     }
   },
   "required": [
@@ -36,18 +43,8 @@
           "type": "string"
         },
         "type": {
-          "enum": [
-            "dji_can_motor",
-            "tmotor_ak80",
-            "can_encoder",
-            "lamprey_encoder",
-            "turret_mcb",
-            "spi_imu",
-            "limit_switch",
-            "ld19_lidar",
-            "realsense_d435",
-            "vision_link"
-          ]
+          "type": "string",
+          "description": "A built-in type, or one a plugin registers."
         },
         "preset": {
           "type": "string"
@@ -516,6 +513,12 @@
                 "properties": {
                   "device": {
                     "type": "string"
+                  },
+                  "bus": {
+                    "type": "string"
+                  },
+                  "cs": {
+                    "type": "string"
                   }
                 },
                 "required": []
@@ -773,6 +776,58 @@
                 "type": "object",
                 "additionalProperties": false,
                 "properties": {}
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "arducam"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "transport": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "v4l"
+                ],
+                "properties": {
+                  "v4l": {
+                    "type": "string"
+                  },
+                  "shm": {
+                    "type": "string"
+                  }
+                }
+              },
+              "bind": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "camera"
+                ],
+                "properties": {
+                  "camera": {
+                    "type": "string"
+                  },
+                  "mujoco": {
+                    "$ref": "#/$defs/mujocoElements"
+                  }
+                }
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "slots": {
+                    "type": "integer"
+                  }
+                }
               }
             }
           }

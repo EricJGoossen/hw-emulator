@@ -2,10 +2,16 @@
 
 // CAN buses the hub's devices talk on.
 //
-//   SocketCanBus   a Linux SocketCAN interface -- vcan0 for the hosted MCB,
-//                  or a real USB-CAN adapter (can0) for hardware in the loop.
-//   LoopbackCanBus an in-process pair of endpoints, for tests and CI where
-//                  vcan can't be loaded: what one end sends the other receives.
+//   UdsCanBus      the one CAN transport between processes: a Unix
+//                  SOCK_SEQPACKET socket per bus, <runtime_dir>/<bus>.sock,
+//                  that the hub serves and the hosted MCB (client/) connects
+//                  to. No root, no kernel module. Every connected client is a
+//                  node on the bus: a frame one sends reaches the hub and
+//                  every other client, as on a real bus.
+//   LoopbackCanBus an in-process pair of endpoints, for tests: what one end
+//                  sends the other receives.
+//
+// A frame on the UDS bus is one 16-byte packet (can_wire.hpp).
 //
 // CanRouter fans received frames out to the devices that asked for their ids.
 
@@ -33,22 +39,26 @@ class ICanBus {
   virtual std::string Name() const = 0;
 };
 
-class SocketCanBus final : public ICanBus {
+class UdsCanBus final : public ICanBus {
  public:
-  // Throws std::runtime_error if the interface can't be opened.
-  explicit SocketCanBus(const std::string& ifname);
-  ~SocketCanBus() override;
-  SocketCanBus(const SocketCanBus&) = delete;
-  SocketCanBus& operator=(const SocketCanBus&) = delete;
+  // Listens at `path`. Throws std::runtime_error if it can't.
+  UdsCanBus(std::string name, std::string path);
+  ~UdsCanBus() override;
+  UdsCanBus(const UdsCanBus&) = delete;
+  UdsCanBus& operator=(const UdsCanBus&) = delete;
 
   bool Send(const CanFrame& frame) override;
   bool Receive(CanFrame* frame) override;
-  std::string Name() const override { return ifname_; }
-  int Fd() const { return fd_; }
+  std::string Name() const override { return name_; }
+  const std::string& Path() const { return path_; }
+  std::size_t Clients() const { return clients_.size(); }
 
  private:
-  std::string ifname_;
-  int fd_ = -1;
+  void Accept();
+  std::string name_, path_;
+  int listen_fd_ = -1;
+  std::vector<int> clients_;
+  std::deque<CanFrame> pending_;
 };
 
 class LoopbackCanBus final : public ICanBus {
@@ -73,10 +83,12 @@ class LoopbackCanBus final : public ICanBus {
   std::shared_ptr<Queue> in_, out_;
 };
 
-// Opens "vcan0"/"can0"-style names as SocketCAN, and "loopback:<name>" as one
-// end of a named in-process loopback pair (the other end is Peer(name)).
+// Opens a bare name ("can1") as a UdsCanBus at <socket_dir>/<name>.sock, and
+// "loopback:<name>" as one end of a named in-process loopback pair (the other
+// end is Peer(name)).
 class CanBusSet {
  public:
+  void SetSocketDir(std::string dir) { socket_dir_ = std::move(dir); }
   ICanBus* Open(const std::string& spec);
   ICanBus* Find(const std::string& spec) const;
   // The far end of loopback:<name>, for a test standing in for the firmware.
@@ -86,6 +98,7 @@ class CanBusSet {
  private:
   std::map<std::string, std::shared_ptr<ICanBus>> buses_;
   std::map<std::string, std::shared_ptr<LoopbackCanBus>> peers_;
+  std::string socket_dir_ = "/tmp/hwemu";
 };
 
 class CanRouter {

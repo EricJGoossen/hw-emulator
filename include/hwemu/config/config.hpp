@@ -32,6 +32,10 @@ struct HubConfig {
   clock::ClockOptions clock;
   std::string runtime_dir = "/tmp/hwemu";
   std::vector<devices::DeviceSpec> devices;
+  // Shared libraries that register more device types (devices.yaml
+  // `plugins:`), loaded before the devices are made. Each exports
+  //   extern "C" void hwemu_register_devices(hwemu::devices::DeviceRegistry*);
+  std::vector<std::string> plugins;
   std::vector<WindowSpec> windows;
   std::optional<double> duration;  // sim seconds; run until stopped if unset
   double status_period = 0.0;      // wall seconds between status lines; 0: none
