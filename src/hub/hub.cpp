@@ -1,5 +1,9 @@
 #include "hwemu/hub/hub.hpp"
 
+#include <chrono>
+
+#include <thread>
+
 #include <dlfcn.h>
 #include <unistd.h>
 
@@ -105,8 +109,21 @@ bool Hub::Tick() {
 }
 
 void Hub::Run(const std::atomic<bool>* stop) {
+  // The clock can block inside a tick (lockstep: waiting for an expected
+  // participant to join or ack) where it never sees `stop`; this passes a
+  // stop on to it, so a signal or the Python Hub's stop() always ends Run.
+  std::atomic<bool> done{false};
+  std::thread watcher;
+  if (stop != nullptr) {
+    watcher = std::thread([&] {
+      while (!done && !*stop) std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      if (*stop) clock_->Stop();
+    });
+  }
   while ((stop == nullptr || !*stop) && Tick()) {
   }
+  done = true;
+  if (watcher.joinable()) watcher.join();
 }
 
 void Hub::Stop() {
