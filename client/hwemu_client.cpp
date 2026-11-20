@@ -14,6 +14,7 @@
 #include <string>
 
 #include <fcntl.h>
+#include <poll.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -37,10 +38,23 @@ std::string Join(const std::string& dir, const std::string& name) { return dir +
 
 // One pinbus connection: a request id counter, and GPIO events that arrived
 // while a request waited for its reply.
+//
+// Output writes are cached per pin: a firmware rewrites the same level or
+// duty every loop iteration, and a write the pin already holds changes
+// nothing in the hub, so it skips the round trip and returns the status the
+// last real write got.
 struct PinBusConnection {
   int fd = -1;
   std::uint32_t next_id = 1;
   std::mutex mutex;
+  std::mutex cache_mutex;
+  std::map<std::string, std::pair<int, int>> gpio_written;  // pin -> (level, status)
+  struct Pwm {
+    float duty;
+    uint32_t frequency_hz;
+    int status;
+  };
+  std::map<std::string, Pwm> pwm_written;
 };
 
 std::mutex g_connections_mutex;
@@ -54,11 +68,21 @@ PinBusConnection* Connection(int handle) {
 }
 
 // Sends a request and waits for the reply with its id, skipping events.
+//
+// The hub answers within microseconds, but waking from a blocking receive
+// costs tens of microseconds on some hosts (WSL), on every request. So this
+// first polls for the reply without sleeping, for up to kSpin, and only
+// then blocks.
 bool Request(PinBusConnection* c, wire::Message request, wire::Message* reply) {
+  constexpr auto kSpin = std::chrono::microseconds(200);
   std::lock_guard<std::mutex> l(c->mutex);
   request.request_id = c->next_id++;
   if (!wire::Send(c->fd, request)) return false;
   while (true) {
+    const auto spin_until = std::chrono::steady_clock::now() + kSpin;
+    pollfd p{c->fd, POLLIN, 0};
+    while (::poll(&p, 1, 0) == 0 && std::chrono::steady_clock::now() < spin_until) {
+    }
     auto m = wire::Receive(c->fd);
     if (!m) return false;
     if ((m->type & 0x80U) != 0 && m->request_id == request.request_id) {
@@ -189,20 +213,39 @@ int hwemu_gpio_read(int handle, const char* pin) {
 int hwemu_gpio_write(int handle, const char* pin, int level) {
   PinBusConnection* c = Connection(handle);
   if (c == nullptr) return -1;
+  const int bit = level != 0 ? 1 : 0;
+  {
+    std::lock_guard<std::mutex> l(c->cache_mutex);
+    auto it = c->gpio_written.find(pin);
+    if (it != c->gpio_written.end() && it->second.first == bit) return it->second.second;
+  }
   wire::Message reply;
-  if (!Request(c, {0x03, 0, 0, pin, {static_cast<std::uint8_t>(level != 0 ? 1 : 0)}}, &reply)) return -1;
-  return reply.status == 0 ? 0 : -1;
+  if (!Request(c, {0x03, 0, 0, pin, {static_cast<std::uint8_t>(bit)}}, &reply)) return -1;
+  const int status = reply.status == 0 ? 0 : -1;
+  std::lock_guard<std::mutex> l(c->cache_mutex);
+  c->gpio_written[pin] = {bit, status};
+  return status;
 }
 
 int hwemu_pwm_write(int handle, const char* pin, float duty, uint32_t frequency_hz) {
   PinBusConnection* c = Connection(handle);
   if (c == nullptr) return -1;
+  {
+    std::lock_guard<std::mutex> l(c->cache_mutex);
+    auto it = c->pwm_written.find(pin);
+    if (it != c->pwm_written.end() && it->second.duty == duty && it->second.frequency_hz == frequency_hz) {
+      return it->second.status;
+    }
+  }
   std::vector<std::uint8_t> payload(8);
   std::memcpy(payload.data(), &duty, 4);
   std::memcpy(payload.data() + 4, &frequency_hz, 4);
   wire::Message reply;
   if (!Request(c, {0x07, 0, 0, pin, payload}, &reply)) return -1;
-  return reply.status == 0 ? 0 : -1;
+  const int status = reply.status == 0 ? 0 : -1;
+  std::lock_guard<std::mutex> l(c->cache_mutex);
+  c->pwm_written[pin] = {duty, frequency_hz, status};
+  return status;
 }
 
 int hwemu_adc_read(int handle, const char* pin) {
@@ -301,7 +344,15 @@ int hwemu_lockstep_join(const char* socket_path, const char* name) {
 }
 
 int hwemu_lockstep_wait(int handle, uint64_t* tick, uint64_t* micros) {
+  // The next tick usually arrives within a millisecond (the hub's step);
+  // waking from a blocking receive costs tens of microseconds on some hosts
+  // (WSL), every tick. So poll without sleeping for up to kSpin first.
+  constexpr auto kSpin = std::chrono::milliseconds(1);
   while (true) {
+    const auto spin_until = std::chrono::steady_clock::now() + kSpin;
+    pollfd p{handle, POLLIN, 0};
+    while (::poll(&p, 1, 0) == 0 && std::chrono::steady_clock::now() < spin_until) {
+    }
     auto m = wire::Receive(handle);
     if (!m) return -1;
     if (m->type == 0x02 && m->payload.size() >= 16) {

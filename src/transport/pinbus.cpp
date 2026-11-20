@@ -5,6 +5,7 @@
 #include "hwemu/gaps.hpp"
 
 #include <cerrno>
+#include <chrono>
 #include <cstring>
 #include <filesystem>
 #include <stdexcept>
@@ -117,6 +118,13 @@ void PinBusServer::AcceptOutput(const std::string& pin) {
 }
 
 void PinBusServer::Run() {
+  // A firmware's requests come in bursts (a tick's SPI, GPIO and ADC
+  // traffic), each one waiting on the reply before it sends the next. Waking
+  // from a blocking poll costs tens of microseconds per request on some
+  // hosts (WSL), so for kSpin after the last request this polls without
+  // sleeping, and only then sleeps until the next one.
+  constexpr auto kSpin = std::chrono::microseconds(200);
+  auto last_request = std::chrono::steady_clock::now() - kSpin;
   while (!stop_) {
     std::vector<pollfd> fds;
     fds.push_back({wake_[0], POLLIN, 0});
@@ -125,7 +133,8 @@ void PinBusServer::Run() {
       std::lock_guard<std::mutex> l(mutex_);
       for (int fd : clients_) fds.push_back({fd, POLLIN, 0});
     }
-    if (::poll(fds.data(), fds.size(), 200) <= 0) {
+    const bool spinning = std::chrono::steady_clock::now() - last_request < kSpin;
+    if (::poll(fds.data(), fds.size(), spinning ? 0 : 200) <= 0) {
       continue;
     }
     if ((fds[1].revents & POLLIN) != 0) {
@@ -138,6 +147,7 @@ void PinBusServer::Run() {
     for (std::size_t i = 2; i < fds.size(); ++i) {
       if ((fds[i].revents & (POLLIN | POLLHUP | POLLERR)) != 0) {
         Handle(fds[i].fd);
+        last_request = std::chrono::steady_clock::now();
       }
     }
   }
