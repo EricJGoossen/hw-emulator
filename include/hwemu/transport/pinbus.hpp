@@ -51,6 +51,8 @@
 #include <thread>
 #include <vector>
 
+#include "hwemu/transport/owned_name.hpp"
+
 namespace hwemu::transport {
 
 namespace pinbus {
@@ -113,6 +115,7 @@ class PinBusServer {
   void Notify(const std::string& pin, bool level);
 
   std::string path_;
+  OwnedName owned_;
   int listen_fd_ = -1;
   int wake_[2] = {-1, -1};
   std::atomic<bool> stop_{false};

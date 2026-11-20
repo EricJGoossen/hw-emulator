@@ -93,14 +93,12 @@ PtyPort::PtyPort(const std::string& link) : link_(link) {
     std::error_code ec;
     fs::remove(p, ec);
     fs::create_symlink(slave_path_, p);
+    owned_link_ = OwnedName(link_);
   }
 }
 
 PtyPort::~PtyPort() {
-  if (!link_.empty()) {
-    std::error_code ec;
-    std::filesystem::remove(link_, ec);
-  }
+  owned_link_.Remove();
   if (slave_ >= 0) ::close(slave_);
   if (master_ >= 0) ::close(master_);
 }

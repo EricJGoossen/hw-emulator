@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
+#include <memory>
 #include <thread>
 
 #include <fcntl.h>
@@ -121,6 +122,21 @@ TEST(FrameShm, AcrossProcesses) {
   ::waitpid(child, &status, 0);
   EXPECT_TRUE(WIFEXITED(status));
   EXPECT_EQ(WEXITSTATUS(status), 0);
+}
+
+TEST(FrameShm, AnOldWriterLeavesANewWritersRingInPlace) {
+  // A hub still shutting down when the next run's hub has made its rings
+  // (a rerun right after Ctrl-C) must not unlink them on its way out.
+  auto old_writer = std::make_unique<transport::FrameShmWriter>("hwemu_test_handover", 2, 16, 64);
+  transport::FrameShmWriter new_writer("hwemu_test_handover", 2, 16, 64);
+  old_writer.reset();
+  EXPECT_TRUE(std::filesystem::exists("/dev/shm/hwemu_test_handover"));
+  transport::FrameShmReader reader("hwemu_test_handover");  // throws if it's gone
+}
+
+TEST(FrameShm, AWriterUnlinksItsOwnRing) {
+  { transport::FrameShmWriter writer("hwemu_test_own", 2, 16, 64); }
+  EXPECT_FALSE(std::filesystem::exists("/dev/shm/hwemu_test_own"));
 }
 
 TEST(SimClock, PublishesMonotonicMicros) {

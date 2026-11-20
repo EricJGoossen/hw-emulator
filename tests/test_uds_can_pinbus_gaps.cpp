@@ -5,6 +5,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <sstream>
 #include <algorithm>
 #include <set>
@@ -16,6 +17,7 @@
 #include "hwemu/gaps.hpp"
 #include "hwemu/transport/can_bus.hpp"
 #include "hwemu/transport/pinbus.hpp"
+#include "hwemu/transport/serial_port.hpp"
 #include "hwemu_client.h"
 
 using namespace hwemu;
@@ -113,6 +115,26 @@ TEST(UdsCan, AnIdNothingConsumesIsAGap) {
   ASSERT_EQ(all.size(), 1U);
   EXPECT_EQ(all[0].source, "can");
   EXPECT_NE(all[0].message.find("0x333"), std::string::npos);
+}
+
+TEST(PinBus, AnOldServerLeavesANewServersSocketInPlace) {
+  // A hub still shutting down when the next run's hub listens on the same
+  // path must not unlink the new socket on its way out.
+  const std::string dir = TempDir("pinbus_handover");
+  auto old_server = std::make_unique<transport::PinBusServer>(dir + "/pinbus.sock");
+  transport::PinBusServer new_server(dir + "/pinbus.sock");
+  old_server.reset();
+  const int h = hwemu_pinbus_connect(new_server.Path().c_str(), "test");
+  EXPECT_GE(h, 0);
+  if (h >= 0) hwemu_pinbus_close(h);
+}
+
+TEST(SerialPort, AnOldPtyLeavesANewPtysLinkInPlace) {
+  const std::string link = TempDir("pty_handover") + "/port";
+  auto old_port = std::make_unique<transport::PtyPort>(link);
+  transport::PtyPort new_port(link);
+  old_port.reset();
+  EXPECT_EQ(std::filesystem::read_symlink(link).string(), new_port.SlavePath());
 }
 
 TEST(PinBus, SpiGoesToWhicheverChipSelectIsLow) {

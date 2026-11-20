@@ -24,6 +24,8 @@
 #include <string>
 #include <vector>
 
+#include "hwemu/transport/owned_name.hpp"
+
 namespace hwemu::transport {
 
 inline constexpr std::size_t kShmHeaderSize = 64;
@@ -49,6 +51,7 @@ class FrameShmWriter {
 
  private:
   std::string name_;
+  OwnedName owned_;
   int fd_ = -1;
   std::uint8_t* base_ = nullptr;
   std::size_t size_ = 0;

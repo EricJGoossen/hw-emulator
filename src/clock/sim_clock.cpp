@@ -19,6 +19,7 @@
 #include <unistd.h>
 
 #include "hwemu/protocol/bytes.hpp"
+#include "hwemu/transport/owned_name.hpp"
 #include "hwemu/transport/uds_wire.hpp"
 
 namespace hwemu::clock {
@@ -50,12 +51,14 @@ struct SimClock::Impl {
   int shm_fd = -1;
   std::uint8_t* shm = nullptr;
   std::string shm_name;
+  transport::OwnedName shm_owned;
 
   // Wall pacing.
   std::chrono::steady_clock::time_point start;
 
   // Lockstep.
   int listen_fd = -1;
+  transport::OwnedName socket_owned;
   std::vector<Participant> participants;  // in tick order
   std::atomic<bool> stop{false};
   mutable std::mutex mutex;
@@ -173,6 +176,7 @@ SimClock::SimClock(const ClockOptions& options) : options_(options), impl_(std::
     impl_->shm_name = "/" + options_.shm_name;
     ::shm_unlink(impl_->shm_name.c_str());
     impl_->shm_fd = ::shm_open(impl_->shm_name.c_str(), O_CREAT | O_RDWR, 0666);
+    impl_->shm_owned = transport::OwnedName(transport::OwnedName::ShmPath(impl_->shm_name));
     if (impl_->shm_fd >= 0 && ::ftruncate(impl_->shm_fd, 64) == 0) {
       ::fchmod(impl_->shm_fd, 0666);
       void* p = ::mmap(nullptr, 64, PROT_READ | PROT_WRITE, MAP_SHARED, impl_->shm_fd, 0);
@@ -190,6 +194,7 @@ SimClock::SimClock(const ClockOptions& options) : options_(options), impl_(std::
     if (impl_->listen_fd < 0) {
       throw std::runtime_error("lockstep: can't listen at " + options_.lockstep_socket);
     }
+    impl_->socket_owned = transport::OwnedName(options_.lockstep_socket);
   }
   impl_->Publish(now_, static_cast<std::uint64_t>(std::llround(options_.dt * 1e6)));
 }
@@ -199,12 +204,12 @@ SimClock::~SimClock() {
   for (auto& p : impl_->participants) ::close(p.fd);
   if (impl_->listen_fd >= 0) {
     ::close(impl_->listen_fd);
-    ::unlink(options_.lockstep_socket.c_str());
+    impl_->socket_owned.Remove();
   }
   if (impl_->shm != nullptr) ::munmap(impl_->shm, 64);
   if (impl_->shm_fd >= 0) {
     ::close(impl_->shm_fd);
-    ::shm_unlink(impl_->shm_name.c_str());
+    impl_->shm_owned.Remove();
   }
 }
 

@@ -40,6 +40,7 @@ FrameShmWriter::FrameShmWriter(
   if (fd_ < 0) {
     throw std::runtime_error("FrameShm: shm_open " + name_ + ": " + std::strerror(errno));
   }
+  owned_ = OwnedName(OwnedName::ShmPath(name_));
   ::fchmod(fd_, 0666);
   size_ = kShmHeaderSize + (slots_ * SlotStride(meta_capacity_, payload_capacity_));
   if (::ftruncate(fd_, static_cast<off_t>(size_)) != 0) {
@@ -62,7 +63,7 @@ FrameShmWriter::FrameShmWriter(
 FrameShmWriter::~FrameShmWriter() {
   if (base_ != nullptr) ::munmap(base_, size_);
   if (fd_ >= 0) ::close(fd_);
-  ::shm_unlink(name_.c_str());
+  owned_.Remove();
 }
 
 std::uint64_t FrameShmWriter::Write(

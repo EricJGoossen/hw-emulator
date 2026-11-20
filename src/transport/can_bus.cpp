@@ -22,6 +22,7 @@ UdsCanBus::UdsCanBus(std::string name, std::string path) : name_(std::move(name)
   if (listen_fd_ < 0) {
     throw std::runtime_error("CAN bus '" + name_ + "': can't listen at " + path_ + ": " + std::strerror(errno));
   }
+  owned_ = OwnedName(path_);
   ::fcntl(listen_fd_, F_SETFL, ::fcntl(listen_fd_, F_GETFL) | O_NONBLOCK);
 }
 
@@ -29,7 +30,7 @@ UdsCanBus::~UdsCanBus() {
   for (int fd : clients_) ::close(fd);
   if (listen_fd_ >= 0) {
     ::close(listen_fd_);
-    ::unlink(path_.c_str());
+    owned_.Remove();
   }
 }
 

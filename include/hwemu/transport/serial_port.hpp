@@ -15,6 +15,8 @@
 #include <string>
 #include <vector>
 
+#include "hwemu/transport/owned_name.hpp"
+
 namespace hwemu::transport {
 
 class ISerialPort {
@@ -50,6 +52,7 @@ class PtyPort final : public ISerialPort {
   int slave_ = -1;
   std::string slave_path_;
   std::string link_;
+  OwnedName owned_link_;
 };
 
 class TtyPort final : public ISerialPort {

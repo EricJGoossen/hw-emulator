@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "hwemu/protocol/can_frame.hpp"
+#include "hwemu/transport/owned_name.hpp"
 
 namespace hwemu::transport {
 
@@ -56,6 +57,7 @@ class UdsCanBus final : public ICanBus {
  private:
   void Accept();
   std::string name_, path_;
+  OwnedName owned_;
   int listen_fd_ = -1;
   std::vector<int> clients_;
   std::deque<CanFrame> pending_;

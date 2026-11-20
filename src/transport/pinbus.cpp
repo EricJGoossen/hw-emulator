@@ -27,6 +27,7 @@ PinBusServer::PinBusServer(const std::string& path) : path_(path) {
   if (listen_fd_ < 0) {
     throw std::runtime_error("pinbus: can't listen at " + path + ": " + std::strerror(errno));
   }
+  owned_ = OwnedName(path);
   if (::pipe(wake_) != 0) {
     throw std::runtime_error("pinbus: pipe failed");
   }
@@ -42,7 +43,7 @@ PinBusServer::~PinBusServer() {
   if (listen_fd_ >= 0) ::close(listen_fd_);
   ::close(wake_[0]);
   ::close(wake_[1]);
-  ::unlink(path_.c_str());
+  owned_.Remove();
 }
 
 void PinBusServer::RegisterSpi(const std::string& device, SpiHandler handler) {
