@@ -39,6 +39,9 @@ struct HubConfig {
   std::vector<WindowSpec> windows;
   std::optional<double> duration;  // sim seconds; run until stopped if unset
   double status_period = 0.0;      // wall seconds between status lines; 0: none
+  // Wall seconds between window draws. A draw runs on the hub's thread, in
+  // the tick loop, so drawing less often leaves more of each second to the sim.
+  double draw_period = 1.0 / 60.0;
 };
 
 // Throws std::invalid_argument (or YAML::Exception) naming the file and field.

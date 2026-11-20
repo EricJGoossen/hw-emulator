@@ -2,6 +2,7 @@
 //
 //   hwemu --sim sim.yaml --devices devices.yaml [--backend achilles|mujoco|fake]
 //         [--headless | --window] [--seconds N] [--lockstep] [--status S]
+//         [--draw-period S]
 //         [--runtime-dir DIR] [--list-devices]
 #include <atomic>
 #include <csignal>
@@ -26,7 +27,7 @@ void OnSignal(int /*signal*/) { g_stop = true; }
 void Usage() {
   std::cerr << "usage: hwemu --sim sim.yaml --devices devices.yaml [--backend achilles|mujoco|fake]\n"
                "             [--headless|--window] [--seconds N] [--lockstep] [--status SECONDS]\n"
-               "             [--runtime-dir DIR] [--list-devices]\n"
+               "             [--draw-period SECONDS] [--runtime-dir DIR] [--list-devices]\n"
                "             lockstep: [--expect NAME,NAME] [--order broadcast|sequential]\n"
                "                       [--ack-timeout SECONDS (0: wait forever)] [--clock-shm NAME]\n";
 }
@@ -35,7 +36,7 @@ void Usage() {
 
 int main(int argc, char** argv) {
   std::string sim_yaml, devices_yaml, backend, runtime_dir;
-  std::optional<double> seconds, status, ack_timeout;
+  std::optional<double> seconds, status, draw_period, ack_timeout;
   std::optional<std::string> expect, order, clock_shm;
   bool headless = false, window = false, lockstep = false, list = false;
   const std::vector<std::string> args(argv + 1, argv + argc);
@@ -55,6 +56,7 @@ int main(int argc, char** argv) {
     else if (a == "--window") window = true;
     else if (a == "--seconds") seconds = std::stod(value());
     else if (a == "--status") status = std::stod(value());
+    else if (a == "--draw-period") draw_period = std::stod(value());
     else if (a == "--lockstep") lockstep = true;
     else if (a == "--runtime-dir") runtime_dir = value();
     else if (a == "--list-devices") list = true;
@@ -87,6 +89,7 @@ int main(int argc, char** argv) {
     if (window) config.sim.display = hwemu::sim::DisplayMode::kWindow;
     if (seconds) config.duration = *seconds;
     if (status) config.status_period = *status;
+    if (draw_period) config.draw_period = *draw_period;
     if (!runtime_dir.empty()) config.runtime_dir = runtime_dir;
     if (lockstep) {
       config.clock.mode = hwemu::clock::ClockMode::kLockstep;

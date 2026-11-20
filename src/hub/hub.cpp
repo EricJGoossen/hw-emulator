@@ -93,7 +93,7 @@ bool Hub::Tick() {
   clock_->Advance();
 
   const auto wall = std::chrono::steady_clock::now();
-  if (display != nullptr && wall - last_draw_ >= std::chrono::milliseconds(16)) {
+  if (display != nullptr && wall - last_draw_ >= std::chrono::duration<double>(config_.draw_period)) {
     last_draw_ = wall;
     if (!display->Draw()) {
       std::cerr << "[hub] display closed\n";
