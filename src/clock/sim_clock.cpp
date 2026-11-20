@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -138,7 +139,17 @@ struct SimClock::Impl {
         return false;
       }
       pollfd pfd{p.fd, POLLIN, 0};
-      if (::poll(&pfd, 1, static_cast<int>(std::min<long>(left.count(), 100))) <= 0) continue;
+      // An ack usually follows within a millisecond; waking from a blocking
+      // poll costs tens of microseconds on some hosts (WSL), every tick. So
+      // poll without sleeping for up to kSpin first.
+      constexpr auto kSpin = std::chrono::milliseconds(1);
+      const auto spin_until = std::chrono::steady_clock::now() + kSpin;
+      while (::poll(&pfd, 1, 0) == 0 && std::chrono::steady_clock::now() < spin_until) {
+      }
+      if ((pfd.revents & (POLLIN | POLLHUP | POLLERR)) == 0 &&
+          ::poll(&pfd, 1, static_cast<int>(std::min<long>(left.count(), 100))) <= 0) {
+        continue;
+      }
       auto m = wire::Receive(p.fd);
       if (!m || m->type == lockstep::kLeave) {
         std::cerr << "[clock] participant " << p.name << " left\n";
