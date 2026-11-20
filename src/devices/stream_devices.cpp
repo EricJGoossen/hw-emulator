@@ -1,5 +1,6 @@
 // The streaming devices: the LD19 lidar (PTY), the RealSense D435 (shared
 // memory) and the MCB <-> Jetson vision link (a PTY relay).
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -91,21 +92,25 @@ void RealsenseD435::Bind(sim::ISim& sim, Transports& t) {
 void RealsenseD435::Tick(const SimTime& now) {
   const std::uint64_t seq = camera_->Sequence();
   if (seq == last_sequence_) return;
-  sim::CameraFrame frame;
+  sim::CameraFrame& frame = frame_;
   if (!camera_->Read(&frame)) return;
   last_sequence_ = seq;
   const sim::Intrinsics in = camera_->GetIntrinsics();
   const std::size_t pixels = std::size_t{frame.width} * frame.height;
   depth_.resize(pixels);
-  for (std::size_t i = 0; i < pixels; ++i) {
-    const float d = i < frame.depth.size() ? frame.depth[i] : 0.0F;
-    // z16: depth / depth_scale; 0 where there's no return (as the D435).
-    if (!std::isfinite(d) || d <= 0.0F) {
-      depth_[i] = 0;
-    } else {
-      depth_[i] = static_cast<std::uint16_t>(std::min(65535.0, std::round(d / depth_scale_)));
-    }
+  const std::size_t have = std::min(pixels, frame.depth.size());
+  const float* depth = frame.depth.data();
+  std::uint16_t* out = depth_.data();
+  // z16: depth / depth_scale, rounded half away from zero; 0 where there's no
+  // return (as the D435). Branch-free, so it vectorizes: a non-finite or
+  // non-positive depth selects 0, and inf (no hit) fails `d < kMax`.
+  const double scale = depth_scale_;
+  for (std::size_t i = 0; i < have; ++i) {
+    const double d = depth[i];
+    const double z = std::min(65535.0, std::floor((d / scale) + 0.5));
+    out[i] = (d > 0.0 && d < 1e30) ? static_cast<std::uint16_t>(z) : std::uint16_t{0};
   }
+  std::fill(out + have, out + pixels, std::uint16_t{0});
   std::array<std::uint8_t, 64> meta{};
   using protocol::PutF32Le;
   using protocol::PutU32Le;
@@ -159,7 +164,7 @@ void Arducam::Bind(sim::ISim& sim, Transports& t) {
 void Arducam::Tick(const SimTime& now) {
   const std::uint64_t seq = camera_->Sequence();
   if (seq == last_sequence_) return;
-  sim::CameraFrame frame;
+  sim::CameraFrame& frame = frame_;
   if (!camera_->Read(&frame)) return;
   last_sequence_ = seq;
   const std::size_t pixels = std::size_t{frame.width} * frame.height;

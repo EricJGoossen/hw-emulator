@@ -237,6 +237,7 @@ class RealsenseD435 final : public IDevice {
   std::uint64_t last_sequence_ = 0;
   std::uint64_t frames_ = 0;
   std::vector<std::uint16_t> depth_;
+  sim::CameraFrame frame_;  // reused, so a frame's buffers are allocated once
   std::unique_ptr<transport::FrameShmWriter> shm_;
   sim::CameraHandle camera_;
 };
@@ -258,6 +259,7 @@ class Arducam final : public IDevice {
   std::uint32_t slots_ = 4;
   std::uint64_t last_sequence_ = 0, frames_ = 0;
   std::vector<std::uint8_t> bgrx_;
+  sim::CameraFrame frame_;  // reused, so a frame's buffers are allocated once
   std::unique_ptr<transport::FrameShmWriter> shm_;
   sim::CameraHandle camera_;
 };
