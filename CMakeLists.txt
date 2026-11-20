@@ -16,12 +16,13 @@ option(HWEMU_WITH_DISPLAY "Build the window displays (Achilles's renderer, MuJoC
 option(HWEMU_WITH_PYTHON "Build the pybind11 module" ON)
 option(HWEMU_BUILD_TESTS "Build the GoogleTest suite" ${PROJECT_IS_TOP_LEVEL})
 
-# Achilles: which repository and ref. The default is the branch carrying the
-# sensor kinds hw-emulator needs (attitude, switch, a sized camera, motor
-# temperature); a local checkout can be used with
+# Achilles: which repository and ref. The default carries the sensor kinds
+# hw-emulator needs (attitude, switch, a sized camera, motor temperature) and
+# the speedups that let lockstep run in real time (Newton contact solver,
+# lane-packed copies, blocked 6x6 fields); a local checkout can be used with
 # -DFETCHCONTENT_SOURCE_DIR_ACHILLES=/path/to/achilles.
 set(HWEMU_ACHILLES_REPOSITORY "https://github.com/EricJGoossen/Achilles.git" CACHE STRING "Achilles git repository")
-set(HWEMU_ACHILLES_TAG "claude/hwemu-support" CACHE STRING "Achilles git ref")
+set(HWEMU_ACHILLES_TAG "claude/realtime-integration" CACHE STRING "Achilles git ref")
 set(HWEMU_MUJOCO_VERSION "3.3.0" CACHE STRING "MuJoCo release")
 
 if (NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
