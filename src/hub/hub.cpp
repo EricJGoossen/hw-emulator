@@ -173,7 +173,9 @@ void Hub::LogTruth(double time) {
   }
   vec3s("gyros", config_.truth_log.gyros, truth_gyros_);
   vec3s("accels", config_.truth_log.accels, truth_accels_);
-  *truth_ << "}\n";
+  // Flushed row by row: a process can follow the log live (aruw-sim's otto
+  // shims read its newest row for the true enemy).
+  *truth_ << "}\n" << std::flush;
 }
 
 void Hub::Run(const std::atomic<bool>* stop) {
