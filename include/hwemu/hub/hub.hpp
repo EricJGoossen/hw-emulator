@@ -56,6 +56,7 @@ class Hub {
   // The truth log (TruthLogSpec): its file, body and next sim time.
   std::unique_ptr<std::ofstream> truth_;
   std::string truth_body_;
+  std::vector<sim::EncoderHandle> truth_encoders_;
   double next_truth_ = 0.0;
   void LogTruth(double time);
   std::chrono::steady_clock::time_point last_draw_, last_status_;

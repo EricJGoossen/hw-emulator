@@ -77,6 +77,7 @@ void Hub::Start() {
   if (config_.truth_log.period > 0.0) {
     truth_body_ = config_.sim.backend == sim::Backend::kMujoco ? config_.truth_log.mujoco : config_.truth_log.achilles;
     (void)sim_->BodyPose(truth_body_);  // an unknown body fails here, not mid-run
+    for (const auto& name : config_.truth_log.encoders) truth_encoders_.push_back(sim_->Encoder(name));
     truth_ = std::make_unique<std::ofstream>(std::filesystem::path(config_.runtime_dir) / "truth.jsonl");
   }
   started_ = true;
@@ -122,10 +123,19 @@ void Hub::LogTruth(double time) {
   const auto& q = p.orientation;
   const double yaw = std::atan2(2.0 * ((q.w * q.z) + (q.x * q.y)), 1.0 - (2.0 * ((q.y * q.y) + (q.z * q.z))));
   char line[256];
-  std::snprintf(line, sizeof(line),
-                "{\"t\":%.4f,\"x\":%.6f,\"y\":%.6f,\"z\":%.6f,\"yaw\":%.6f,\"q\":[%.6f,%.6f,%.6f,%.6f]}\n", time,
-                p.position.x, p.position.y, p.position.z, yaw, q.w, q.x, q.y, q.z);
+  std::snprintf(line, sizeof(line), "{\"t\":%.4f,\"x\":%.6f,\"y\":%.6f,\"z\":%.6f,\"yaw\":%.6f,\"q\":[%.6f,%.6f,%.6f,%.6f]",
+                time, p.position.x, p.position.y, p.position.z, yaw, q.w, q.x, q.y, q.z);
   *truth_ << line;
+  if (!truth_encoders_.empty()) {
+    *truth_ << ",\"encoders\":{";
+    for (std::size_t i = 0; i < truth_encoders_.size(); ++i) {
+      std::snprintf(line, sizeof(line), "%s\"%s\":%.6f", i == 0 ? "" : ",", config_.truth_log.encoders[i].c_str(),
+                    truth_encoders_[i]->Read().position);
+      *truth_ << line;
+    }
+    *truth_ << "}";
+  }
+  *truth_ << "}\n";
 }
 
 void Hub::Run(const std::atomic<bool>* stop) {

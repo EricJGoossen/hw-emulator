@@ -51,7 +51,7 @@
     "runtime_dir": {"type": "string", "default": "/tmp/hwemu"},
     "duration": {"type": "number", "exclusiveMinimum": 0, "description": "Sim seconds to run; unset: until stopped."},
     "status_period": {"type": "number", "minimum": 0, "description": "Wall seconds between status lines; 0: none."},
-    "truth_log": {"type": "object", "additionalProperties": false, "description": "Ground truth for checking a run: a body's world pose every period of sim time, to <runtime dir>/truth.jsonl.", "properties": {"period": {"type": "number", "exclusiveMinimum": 0, "default": 0.01}, "body": {"type": "object", "additionalProperties": false, "properties": {"achilles": {"type": "string", "description": "An Achilles joint, as archetype/joint"}, "mujoco": {"type": "string", "description": "A MuJoCo body"}}}}},
+    "truth_log": {"type": "object", "additionalProperties": false, "description": "Ground truth for checking a run: a body's world pose every period of sim time, to <runtime dir>/truth.jsonl.", "properties": {"period": {"type": "number", "exclusiveMinimum": 0, "default": 0.01}, "body": {"type": "object", "additionalProperties": false, "properties": {"achilles": {"type": "string", "description": "An Achilles joint, as archetype/joint"}, "mujoco": {"type": "string", "description": "A MuJoCo body"}}}, "encoders": {"type": "array", "items": {"type": "string"}, "description": "Sim encoders (devices.yaml bind names) whose positions each row also carries, as encoders: {name: position}"}}},
     "draw_period": {"type": "number", "exclusiveMinimum": 0, "description": "Wall seconds between window draws (default 1/60). A draw runs on the hub's thread."},
     "windows": {
       "type": "array",

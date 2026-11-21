@@ -153,8 +153,11 @@ HubConfig LoadHubConfig(const std::string& sim_yaml, const std::string& devices_
   if (root["draw_period"]) config.draw_period = root["draw_period"].as<double>();
   if (const auto t = root["truth_log"]) {
     config.truth_log.period = t["period"] ? t["period"].as<double>() : 0.01;
-    if (t["body"]["achilles"]) config.truth_log.achilles = t["body"]["achilles"].as<std::string>();
-    if (t["body"]["mujoco"]) config.truth_log.mujoco = t["body"]["mujoco"].as<std::string>();
+    if (const auto b = t["body"]) {
+      if (b["achilles"]) config.truth_log.achilles = b["achilles"].as<std::string>();
+      if (b["mujoco"]) config.truth_log.mujoco = b["mujoco"].as<std::string>();
+    }
+    for (const auto& e : t["encoders"]) config.truth_log.encoders.push_back(e.as<std::string>());
   }
   for (const auto& w : root["windows"]) {
     WindowSpec spec;

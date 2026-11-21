@@ -49,4 +49,11 @@ TEST(HubConfig, TruthLogIsOffUnlessAskedAndNamesABodyPerBackend) {
   EXPECT_DOUBLE_EQ(config.truth_log.period, 0.02);
   EXPECT_EQ(config.truth_log.achilles, "sentry/floating_base");
   EXPECT_EQ(config.truth_log.mujoco, "base_footprint");
+  EXPECT_TRUE(config.truth_log.encoders.empty());
+}
+
+TEST(HubConfig, TruthLogCanCarryEncoders) {
+  const auto config =
+      hwemu::config::LoadHubConfig(WriteSimYaml("truth2", "truth_log: {encoders: [major_yaw_encoder, pitch]}\n"), "");
+  EXPECT_EQ(config.truth_log.encoders, (std::vector<std::string>{"major_yaw_encoder", "pitch"}));
 }

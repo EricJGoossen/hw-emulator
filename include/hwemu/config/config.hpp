@@ -38,6 +38,9 @@ struct TruthLogSpec {
   double period = 0.0;  // sim seconds
   std::string achilles;
   std::string mujoco;
+  // Sim encoders (devices.yaml bind names) whose positions each row also
+  // carries, e.g. a turret joint's angle off the logged body.
+  std::vector<std::string> encoders;
 };
 
 struct HubConfig {
