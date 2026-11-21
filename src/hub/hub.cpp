@@ -78,6 +78,8 @@ void Hub::Start() {
     truth_body_ = config_.sim.backend == sim::Backend::kMujoco ? config_.truth_log.mujoco : config_.truth_log.achilles;
     (void)sim_->BodyPose(truth_body_);  // an unknown body fails here, not mid-run
     for (const auto& name : config_.truth_log.encoders) truth_encoders_.push_back(sim_->Encoder(name));
+    for (const auto& name : config_.truth_log.gyros) truth_gyros_.push_back(sim_->Gyro(name));
+    for (const auto& name : config_.truth_log.accels) truth_accels_.push_back(sim_->Accel(name));
     truth_ = std::make_unique<std::ofstream>(std::filesystem::path(config_.runtime_dir) / "truth.jsonl");
   }
   started_ = true;
@@ -135,6 +137,19 @@ void Hub::LogTruth(double time) {
     }
     *truth_ << "}";
   }
+  const auto vec3s = [&](const char* key, const std::vector<std::string>& names,
+                         const std::vector<sim::Vec3Handle>& sensors) {
+    if (sensors.empty()) return;
+    *truth_ << ",\"" << key << "\":{";
+    for (std::size_t i = 0; i < sensors.size(); ++i) {
+      const sim::Vec3 v = sensors[i]->Read();
+      std::snprintf(line, sizeof(line), "%s\"%s\":[%.7f,%.7f,%.7f]", i == 0 ? "" : ",", names[i].c_str(), v.x, v.y, v.z);
+      *truth_ << line;
+    }
+    *truth_ << "}";
+  };
+  vec3s("gyros", config_.truth_log.gyros, truth_gyros_);
+  vec3s("accels", config_.truth_log.accels, truth_accels_);
   *truth_ << "}\n";
 }
 

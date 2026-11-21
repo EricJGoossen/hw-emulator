@@ -41,6 +41,11 @@ struct TruthLogSpec {
   // Sim encoders (devices.yaml bind names) whose positions each row also
   // carries, e.g. a turret joint's angle off the logged body.
   std::vector<std::string> encoders;
+  // Sim gyros and accelerometers whose readings (rad/s, m/s^2, in the
+  // sensor's frame, noise included) each row also carries: what a
+  // firmware's attitude filter was given, to check it offline.
+  std::vector<std::string> gyros;
+  std::vector<std::string> accels;
 };
 
 struct HubConfig {

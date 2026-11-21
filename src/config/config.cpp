@@ -158,6 +158,8 @@ HubConfig LoadHubConfig(const std::string& sim_yaml, const std::string& devices_
       if (b["mujoco"]) config.truth_log.mujoco = b["mujoco"].as<std::string>();
     }
     for (const auto& e : t["encoders"]) config.truth_log.encoders.push_back(e.as<std::string>());
+    for (const auto& g : t["gyros"]) config.truth_log.gyros.push_back(g.as<std::string>());
+    for (const auto& a : t["accels"]) config.truth_log.accels.push_back(a.as<std::string>());
   }
   for (const auto& w : root["windows"]) {
     WindowSpec spec;

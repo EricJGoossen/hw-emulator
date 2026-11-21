@@ -52,8 +52,10 @@ TEST(HubConfig, TruthLogIsOffUnlessAskedAndNamesABodyPerBackend) {
   EXPECT_TRUE(config.truth_log.encoders.empty());
 }
 
-TEST(HubConfig, TruthLogCanCarryEncoders) {
-  const auto config =
-      hwemu::config::LoadHubConfig(WriteSimYaml("truth2", "truth_log: {encoders: [major_yaw_encoder, pitch]}\n"), "");
+TEST(HubConfig, TruthLogCanCarryEncodersAndImus) {
+  const auto config = hwemu::config::LoadHubConfig(
+      WriteSimYaml("truth2", "truth_log: {encoders: [major_yaw_encoder, pitch], gyros: [g], accels: [a, b]}\n"), "");
   EXPECT_EQ(config.truth_log.encoders, (std::vector<std::string>{"major_yaw_encoder", "pitch"}));
+  EXPECT_EQ(config.truth_log.gyros, (std::vector<std::string>{"g"}));
+  EXPECT_EQ(config.truth_log.accels, (std::vector<std::string>{"a", "b"}));
 }
