@@ -1,17 +1,19 @@
 // The Achilles display: the shared contract over achilles::display::Renderer.
 // A window per sensor is native here (CameraView, DepthView, LidarView,
-// ReadingView); every camera's windows also fly it (FlyCamera) when it rides
-// a joint whose pose can be set, as Achilles's own examples do.
+// ReadingView); a camera's window asked to fly it steers it (FlyCamera), as
+// Achilles's own examples do.
 #include <map>
 #include <stdexcept>
 #include <string>
 
+#include "display/controllers/fly_camera.hpp"
 #include "display/renderer.hpp"
 #include "display/views/camera/camera_view.hpp"
 #include "display/views/camera/depth_view.hpp"
 #include "display/views/lidar_view.hpp"
 #include "display/views/reading_view.hpp"
 #include "domain/actuation/dc_motor.hpp"
+#include "domain/attachment/sim_quantities.hpp"
 #include "domain/sensing/accelerometer.hpp"
 #include "domain/sensing/attitude.hpp"
 #include "domain/sensing/camera.hpp"
@@ -64,8 +66,11 @@ class AchillesDisplay final : public IDisplay, public ISensorWindows {
   Capabilities Caps() const override { return {true, true, true, false}; }
   ISensorWindows* SensorWindows() override { return this; }
 
-  WindowId Show(std::string_view sensor, ViewKind kind, std::string_view title) override {
+  WindowId Show(std::string_view sensor, ViewKind kind, std::string_view title, bool fly) override {
     Open();
+    if (fly && kind != ViewKind::kImage && kind != ViewKind::kDepth) {
+      throw std::invalid_argument("'" + std::string(sensor) + "': only a camera's window can fly it");
+    }
     const auto lists = sim_.Attachments();
     const std::string name(sensor);
     auto find = [&]<typename K>() -> const achilles::interface::NamedAttachment<K>* {
@@ -79,6 +84,7 @@ class AchillesDisplay final : public IDisplay, public ISensorWindows {
       case ViewKind::kImage:
         if (auto* c = find.template operator()<as::Camera>()) {
           id = renderer_->Attach(ad::CameraView(c->handle), title);
+          if (fly) renderer_->Control(id, FlyCameraFor(*c));
         } else {
           throw std::invalid_argument("no camera '" + name + "' to show as an image");
         }
@@ -86,6 +92,7 @@ class AchillesDisplay final : public IDisplay, public ISensorWindows {
       case ViewKind::kDepth:
         if (auto* c = find.template operator()<as::Camera>()) {
           id = renderer_->Attach(ad::DepthView(c->handle), title);
+          if (fly) renderer_->Control(id, FlyCameraFor(*c));
         } else {
           throw std::invalid_argument("no camera '" + name + "' to show as depth");
         }
@@ -132,6 +139,14 @@ class AchillesDisplay final : public IDisplay, public ISensorWindows {
   ad::Renderer* Renderer() { return renderer_.get(); }
 
  private:
+  // Steers `camera` by writing the pose of the joint it rides (see
+  // achilles::display::FlyCamera), up being the sim's.
+  ad::FlyCamera FlyCameraFor(const achilles::interface::NamedAttachment<as::Camera>& camera) const {
+    namespace input = achilles::domain::attachment::input;
+    return {sim_.State<input::JointPosition>(camera.joint), sim_.State<const input::WorldTransform>(camera.joint),
+            camera.handle.Config().GetParams().body_from_sensor, {.up = sim_.Up()}};
+  }
+
   achilles::interface::Simulation& sim_;
   std::unique_ptr<ad::Renderer> renderer_;
   std::map<WindowId, ad::WindowId> windows_;

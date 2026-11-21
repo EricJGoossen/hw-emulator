@@ -156,6 +156,7 @@ HubConfig LoadHubConfig(const std::string& sim_yaml, const std::string& devices_
     spec.sensor = w["sensor"].as<std::string>();
     spec.view = w["view"] ? display::ParseViewKind(w["view"].as<std::string>()) : display::ViewKind::kImage;
     spec.title = w["title"] ? w["title"].as<std::string>() : spec.sensor;
+    spec.fly = w["fly"] && w["fly"].as<bool>();
     config.windows.push_back(spec);
   }
   if (!devices_yaml.empty()) {

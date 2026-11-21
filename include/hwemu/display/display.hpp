@@ -32,9 +32,14 @@ struct Capabilities {
 class ISensorWindows {
  public:
   virtual ~ISensorWindows() = default;
-  // Opens a window on sensor `sensor_name`, as `kind` shows it. Throws
-  // std::invalid_argument for a sensor that kind can't show.
-  virtual WindowId Show(std::string_view sensor_name, ViewKind kind, std::string_view title) = 0;
+  // Opens a window on sensor `sensor_name`, as `kind` shows it. With `fly`,
+  // a camera's window also steers the camera, by writing the pose of the
+  // joint it rides: meant for a camera on a mount carrying nothing else,
+  // since that joint is held wherever it's flown. Throws
+  // std::invalid_argument for a sensor that kind can't show, or `fly` on
+  // anything but a camera.
+  virtual WindowId Show(std::string_view sensor_name, ViewKind kind, std::string_view title,
+                        bool fly) = 0;
   virtual void Hide(WindowId id) = 0;
 };
 

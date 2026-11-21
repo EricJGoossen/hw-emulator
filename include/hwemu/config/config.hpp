@@ -25,6 +25,9 @@ struct WindowSpec {
   std::string sensor;
   display::ViewKind view = display::ViewKind::kImage;
   std::string title;
+  // A camera's window that steers the camera by its keys and mouse (see
+  // ISensorWindows::Show). Only for a camera on a mount of its own.
+  bool fly = false;
 };
 
 struct HubConfig {

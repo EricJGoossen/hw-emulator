@@ -61,7 +61,7 @@ void Hub::Start() {
     display->Open();
     if (auto* windows = display->SensorWindows()) {
       for (const auto& w : config_.windows) {
-        windows->Show(w.sensor, w.view, w.title);
+        windows->Show(w.sensor, w.view, w.title, w.fly);
       }
     } else if (!config_.windows.empty()) {
       gaps::Report("display", "sensor-windows",
