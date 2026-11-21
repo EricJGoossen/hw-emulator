@@ -173,7 +173,17 @@ PYBIND11_MODULE(_hwemu, m) {
       .def("camera", &sim::ISim::Camera)
       .def("lidar", &sim::ISim::Lidar)
       .def("switch", &sim::ISim::Switch)
-      .def("list", &sim::ISim::List);
+      .def("list", &sim::ISim::List)
+      .def(
+          "body_pose",
+          [](sim::ISim& s, const std::string& name) {
+            const sim::Pose p = s.BodyPose(name);
+            py::dict d;
+            d["position"] = py::make_tuple(p.position.x, p.position.y, p.position.z);
+            d["orientation"] = py::make_tuple(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z);
+            return d;
+          },
+          py::arg("name"), "Ground truth: a body's world pose (a MuJoCo body; an Achilles archetype/joint).");
 
   m.def(
       "make_sim",
