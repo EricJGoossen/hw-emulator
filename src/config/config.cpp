@@ -151,6 +151,11 @@ HubConfig LoadHubConfig(const std::string& sim_yaml, const std::string& devices_
   if (root["duration"]) config.duration = root["duration"].as<double>();
   if (root["status_period"]) config.status_period = root["status_period"].as<double>();
   if (root["draw_period"]) config.draw_period = root["draw_period"].as<double>();
+  if (const auto t = root["truth_log"]) {
+    config.truth_log.period = t["period"] ? t["period"].as<double>() : 0.01;
+    if (t["body"]["achilles"]) config.truth_log.achilles = t["body"]["achilles"].as<std::string>();
+    if (t["body"]["mujoco"]) config.truth_log.mujoco = t["body"]["mujoco"].as<std::string>();
+  }
   for (const auto& w : root["windows"]) {
     WindowSpec spec;
     spec.sensor = w["sensor"].as<std::string>();

@@ -9,6 +9,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -52,6 +53,11 @@ class Hub {
   std::vector<std::unique_ptr<devices::IDevice>> devices_;
   std::atomic<bool> stop_{false};
   bool started_ = false;
+  // The truth log (TruthLogSpec): its file, body and next sim time.
+  std::unique_ptr<std::ofstream> truth_;
+  std::string truth_body_;
+  double next_truth_ = 0.0;
+  void LogTruth(double time);
   std::chrono::steady_clock::time_point last_draw_, last_status_;
 };
 

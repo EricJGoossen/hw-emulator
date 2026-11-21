@@ -17,6 +17,8 @@
 #include "domain/sensing/limit_switch.hpp"
 #include "domain/sensing/magnetometer.hpp"
 #include "hwemu/sim/achilles_extras.hpp"
+#include "domain/attachment/sim_quantities.hpp"
+#include "domain/joint_data.hpp"
 #include "interface/attachments.hpp"
 #include "interface/simulation.hpp"
 
@@ -221,6 +223,29 @@ class AchillesSim final : public ISim {
     }
   }
   double Time() const override { return sim_.Time(); }
+
+  Pose BodyPose(std::string_view name) override {
+    // "archetype/joint" (instance 0).
+    namespace input = achilles::domain::attachment::input;
+    const std::string full(name);
+    const auto slash = full.find('/');
+    if (slash == std::string::npos) {
+      throw UnknownSensor("Achilles: a body pose names its joint as archetype/joint, not '" + full + "'");
+    }
+    try {
+      const auto x =
+          sim_.State<const input::WorldTransform>(achilles::domain::JointAddress{full.substr(0, slash), full.substr(slash + 1)})
+              .Read();
+      const auto& t = x.Translation();
+      const auto& q = x.Rotation();
+      Pose pose;
+      pose.position = {t.X(), t.Y(), t.Z()};
+      pose.orientation = {q.W(), q.X(), q.Y(), q.Z()};
+      return pose;
+    } catch (const std::exception& e) {
+      throw UnknownSensor("Achilles: no joint '" + full + "' for a body pose: " + e.what());
+    }
+  }
 
   MotorHandle Motor(std::string_view name) override {
     return std::make_shared<class Motor>(Find<aa::DcMotor>(name, "motor"));

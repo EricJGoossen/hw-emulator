@@ -1,6 +1,8 @@
 #include "hwemu/hub/hub.hpp"
 
 #include <chrono>
+#include <cmath>
+#include <cstdio>
 
 #include <thread>
 
@@ -72,6 +74,11 @@ void Hub::Start() {
   // answered (or reported as gaps) even with no device using it.
   transports_->PinBus();
   last_draw_ = last_status_ = std::chrono::steady_clock::now();
+  if (config_.truth_log.period > 0.0) {
+    truth_body_ = config_.sim.backend == sim::Backend::kMujoco ? config_.truth_log.mujoco : config_.truth_log.achilles;
+    (void)sim_->BodyPose(truth_body_);  // an unknown body fails here, not mid-run
+    truth_ = std::make_unique<std::ofstream>(std::filesystem::path(config_.runtime_dir) / "truth.jsonl");
+  }
   started_ = true;
   // Everything is listening: a launcher waiting on this file can start the
   // firmware and otto.
@@ -91,6 +98,7 @@ bool Hub::Tick() {
     sim_->Step(config_.clock.dt);
   }
   clock_->Advance();
+  if (truth_ && clock_->Now().seconds >= next_truth_ - 1e-9) LogTruth(clock_->Now().seconds);
 
   const auto wall = std::chrono::steady_clock::now();
   if (display != nullptr && wall - last_draw_ >= std::chrono::duration<double>(config_.draw_period)) {
@@ -106,6 +114,18 @@ bool Hub::Tick() {
     std::cerr << StatusReport();
   }
   return !(config_.duration && clock_->Now().seconds >= *config_.duration - 1e-9);
+}
+
+void Hub::LogTruth(double time) {
+  next_truth_ = time + config_.truth_log.period;
+  const sim::Pose p = sim_->BodyPose(truth_body_);
+  const auto& q = p.orientation;
+  const double yaw = std::atan2(2.0 * ((q.w * q.z) + (q.x * q.y)), 1.0 - (2.0 * ((q.y * q.y) + (q.z * q.z))));
+  char line[256];
+  std::snprintf(line, sizeof(line),
+                "{\"t\":%.4f,\"x\":%.6f,\"y\":%.6f,\"z\":%.6f,\"yaw\":%.6f,\"q\":[%.6f,%.6f,%.6f,%.6f]}\n", time,
+                p.position.x, p.position.y, p.position.z, yaw, q.w, q.x, q.y, q.z);
+  *truth_ << line;
 }
 
 void Hub::Run(const std::atomic<bool>* stop) {

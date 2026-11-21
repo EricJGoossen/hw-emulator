@@ -23,6 +23,10 @@ class FakeSim final : public ISim {
   Backend GetBackend() const override { return Backend::kFake; }
   void Step(double dt) override { time_ += dt; }
   double Time() const override { return time_; }
+  // The fake has no bodies: every name is unknown.
+  Pose BodyPose(std::string_view name) override {
+    throw UnknownSensor("fake sim: no body '" + std::string(name) + "'");
+  }
 
   MotorHandle Motor(std::string_view name) override;
   EncoderHandle Encoder(std::string_view name) override;

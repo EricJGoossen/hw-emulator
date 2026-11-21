@@ -52,6 +52,10 @@ struct Vec3 {
 struct Quat {
   double w = 1, x = 0, y = 0, z = 0;
 };
+struct Pose {
+  Vec3 position;     // m, world
+  Quat orientation;  // world from body
+};
 
 struct MotorCommand {
   enum class Mode { kCurrent, kVoltage };
@@ -183,6 +187,12 @@ class ISim {
   virtual SwitchHandle Switch(std::string_view name) = 0;
 
   virtual std::vector<SensorInfo> List() const = 0;
+
+  // Ground truth, for checking a run (the hub's truth log), never for a
+  // device: the world pose of a body -- a MuJoCo body's name, an Achilles
+  // joint's as archetype/joint (the body it moves). Throws UnknownSensor for
+  // an unknown name.
+  virtual Pose BodyPose(std::string_view name) = 0;
 
   // Null when headless.
   virtual display::IDisplay* Display() = 0;

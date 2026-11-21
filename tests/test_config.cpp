@@ -40,3 +40,13 @@ TEST(HubConfig, DrawPeriodDefaultsToSixtyHertzAndCanBeSet) {
   EXPECT_DOUBLE_EQ(hwemu::config::LoadHubConfig(WriteSimYaml("draw0", ""), "").draw_period, 1.0 / 60.0);
   EXPECT_DOUBLE_EQ(hwemu::config::LoadHubConfig(WriteSimYaml("draw1", "draw_period: 0.05\n"), "").draw_period, 0.05);
 }
+
+TEST(HubConfig, TruthLogIsOffUnlessAskedAndNamesABodyPerBackend) {
+  EXPECT_EQ(hwemu::config::LoadHubConfig(WriteSimYaml("truth0", ""), "").truth_log.period, 0.0);
+  const auto config = hwemu::config::LoadHubConfig(
+      WriteSimYaml("truth1", "truth_log: {period: 0.02, body: {achilles: sentry/floating_base, mujoco: base_footprint}}\n"),
+      "");
+  EXPECT_DOUBLE_EQ(config.truth_log.period, 0.02);
+  EXPECT_EQ(config.truth_log.achilles, "sentry/floating_base");
+  EXPECT_EQ(config.truth_log.mujoco, "base_footprint");
+}

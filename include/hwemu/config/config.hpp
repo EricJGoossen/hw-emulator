@@ -30,6 +30,16 @@ struct WindowSpec {
   bool fly = false;
 };
 
+// The hub's ground-truth log: a body's world pose every `period` of sim
+// time, to <runtime dir>/truth.jsonl, for checking a run against what the
+// firmware and otto believe. The body is named per backend (an Achilles
+// joint, a MuJoCo body). Off while period is 0.
+struct TruthLogSpec {
+  double period = 0.0;  // sim seconds
+  std::string achilles;
+  std::string mujoco;
+};
+
 struct HubConfig {
   sim::SimOptions sim;
   clock::ClockOptions clock;
@@ -45,6 +55,7 @@ struct HubConfig {
   // Wall seconds between window draws. A draw runs on the hub's thread, in
   // the tick loop, so drawing less often leaves more of each second to the sim.
   double draw_period = 1.0 / 60.0;
+  TruthLogSpec truth_log;
 };
 
 // Throws std::invalid_argument (or YAML::Exception) naming the file and field.

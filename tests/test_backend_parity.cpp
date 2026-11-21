@@ -140,6 +140,27 @@ TEST(MujocoCamera, SeesTheWallTwoMetresAheadAndReportsItsIntrinsics) {
   EXPECT_GT(px[0] + px[1] + px[2], 30);
 }
 
+// Ground truth (the hub's truth log): the same body, named the way each
+// engine names it -- Achilles by its joint, MuJoCo by its body -- sits at
+// the same world place, and an unknown name is an UnknownSensor. Only the
+// place for the yaw: Achilles turns a revolute joint's frame to put x on
+// its axis (tools/urdf_to_arow.py), so frames match in orientation only
+// where nothing is turned -- the welded base here, a floating base on a
+// robot.
+TEST_F(Parity, BothGiveTheSameBodyPose) {
+  Both([](Rig& r) { r.For(0.05); });
+  const hwemu::sim::Pose a = achilles.sim->BodyPose("turret/yaw");
+  const hwemu::sim::Pose m = mujoco.sim->BodyPose("yaw_link");
+  EXPECT_NEAR(a.position.x, m.position.x, 1e-4);
+  EXPECT_NEAR(a.position.y, m.position.y, 1e-4);
+  EXPECT_NEAR(a.position.z, m.position.z, 1e-4);
+  const hwemu::sim::Quat qa = achilles.sim->BodyPose("turret/base").orientation;
+  const hwemu::sim::Quat qm = mujoco.sim->BodyPose("base_link").orientation;
+  EXPECT_NEAR(std::abs((qa.w * qm.w) + (qa.x * qm.x) + (qa.y * qm.y) + (qa.z * qm.z)), 1.0, 1e-4);
+  EXPECT_THROW((void)achilles.sim->BodyPose("turret/no_such_joint"), hwemu::sim::UnknownSensor);
+  EXPECT_THROW((void)mujoco.sim->BodyPose("no_such_body"), hwemu::sim::UnknownSensor);
+}
+
 }  // namespace
 
 #else

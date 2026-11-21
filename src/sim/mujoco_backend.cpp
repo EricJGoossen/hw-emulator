@@ -321,6 +321,13 @@ class MujocoSim final : public ISim {
     Sample();
   }
 
+  Pose BodyPose(std::string_view name) override {
+    const int id = mj_name2id(model_, mjOBJ_BODY, std::string(name).c_str());
+    if (id < 0) throw UnknownSensor("MuJoCo: no body '" + std::string(name) + "' for a body pose");
+    const mjtNum* p = data_->xpos + (3 * id);
+    const mjtNum* q = data_->xquat + (4 * id);
+    return {{p[0], p[1], p[2]}, {q[0], q[1], q[2], q[3]}};
+  }
   double Time() const override {
     std::lock_guard<std::recursive_mutex> l(*mutex_);
     return data_->time;
