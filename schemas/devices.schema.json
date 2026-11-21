@@ -985,6 +985,10 @@
           "type": "number",
           "exclusiveMinimum": 0
         },
+        "ignore_robot": {
+          "type": "boolean",
+          "description": "The lidar doesn't see the robot it's mounted on (a real one looks out through gaps the collision shapes don't have)."
+        },
         "samples": {
           "type": "integer",
           "minimum": 1

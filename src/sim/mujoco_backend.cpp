@@ -140,6 +140,10 @@ struct CameraState {
 
 struct LidarState {
   int site = -1, body = -1;
+  // Doesn't see the robot it's mounted on (every body under the same root
+  // body): a real one looks out through gaps its robot's collision shapes
+  // don't have.
+  bool ignore_robot = false;
   int samples = 360;
   double fov = 2 * std::numbers::pi, min_range = 0.02, max_range = 12, period = 0.1, next = 0, noise = 0;
   LidarScan scan;
@@ -572,6 +576,7 @@ class MujocoSim final : public ISim {
       d.max_range = s.Num("max_range", 12);
       d.period = s.Num("period", 0.1);
       d.noise = s.Num("noise", 0);
+      d.ignore_robot = s.node["ignore_robot"] && s.node["ignore_robot"].as<bool>();
       d.scan.min_range = static_cast<float>(d.min_range);
       d.scan.max_range = static_cast<float>(d.max_range);
       for (int i = 0; i < d.samples; ++i) {
@@ -663,6 +668,26 @@ class MujocoSim final : public ISim {
     }
   }
 
+  // The distance along `dir` from `p` to the first geom it hits, or -1 --
+  // with ignore_robot, the first not on the lidar's own robot: the ray goes
+  // on past those (up to a few times; a robot is never deeper than that).
+  double RayPastRobot(const LidarState* d, const double* p, const double* dir) const {
+    int geom = -1;
+    double travelled = 0.0;
+    double from[3] = {p[0], p[1], p[2]};
+    const int root = model_->body_rootid[d->body];
+    for (int pass = 0; pass < 16; ++pass) {
+      const double r = mj_ray(model_, data_, from, dir, nullptr, 1, d->body, &geom);
+      if (r < 0) return -1.0;
+      const bool own = d->ignore_robot && model_->body_rootid[model_->geom_bodyid[geom]] == root && root != 0;
+      if (!own) return travelled + r;
+      constexpr double kPast = 1e-4;  // m, just past the robot's surface
+      travelled += r + kPast;
+      for (int k = 0; k < 3; ++k) from[k] += dir[k] * (r + kPast);
+    }
+    return -1.0;
+  }
+
   void CastLidar(LidarState* d) {
     const double* p = data_->site_xpos + 3 * d->site;
     const double* R = data_->site_xmat + 9 * d->site;
@@ -672,8 +697,7 @@ class MujocoSim final : public ISim {
       const double local[3] = {std::cos(a), std::sin(a), 0};
       double dir[3];
       mju_mulMatVec3(dir, R, local);
-      int geom = -1;
-      const double r = mj_ray(model_, data_, p, dir, nullptr, 1, d->body, &geom);
+      double r = RayPastRobot(d, p, dir);
       double range = (r < 0) ? kInf : r + Noise(d->noise);
       if (range < d->min_range || range > d->max_range) range = kInf;
       d->scan.ranges[static_cast<std::size_t>(i)] = static_cast<float>(range);

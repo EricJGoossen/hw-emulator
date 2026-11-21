@@ -33,7 +33,8 @@ Element -> Achilles kind (MuJoCo key -> Achilles setting):
   camera   -> camera (width, height, fx, fy, cx, cy, near, far, period;
               fovy -> fx = fy = height / 2 / tan(fovy / 2) when fx/fy aren't given)
   lidar    -> lidar (samples -> horizontal_samples, fov -> horizontal_fov,
-              min_range, max_range, period, noise -> range_noise)
+              min_range, max_range, period, noise -> range_noise,
+              ignore_robot -> ignore_groups: 2, the robot's collision group)
 
 sim.yaml's `mujoco.elements` are model edits rather than attachments:
   exclude -> nothing to do when both bodies are in the robot (urdf_to_arow
@@ -215,7 +216,11 @@ class Converter:
             num("min_range", value=el.get("min_range", 0.02))
             num("max_range", value=el.get("max_range", 12))
             num("noise", "range_noise")
-            used = {"body", "pos", "quat", "period", "samples", "fov", "min_range", "max_range", "noise"}
+            if el.get("ignore_robot"):
+                # urdf_to_arow puts every body of the robot in collision group 2.
+                cfg.append(("ignore_groups", "2"))
+            used = {"body", "pos", "quat", "period", "samples", "fov", "min_range", "max_range", "noise",
+                    "ignore_robot"}
             head = f"sensor: {el_name}\nkind: lidar"
             if int(el.get("samples", 360)) > 1024:
                 raise SystemExit(f"elements_to_arow: {el_name}: Achilles lidars cast at most 1024 beams")
