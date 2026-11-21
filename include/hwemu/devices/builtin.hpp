@@ -216,6 +216,11 @@ class Ld19Lidar final : public IDevice {
   std::uint8_t intensity_ = 200;
   double scan_rate_hz_ = 0.0;  // 0: from the sim's scan period
   double min_range_ = 0.02, max_range_ = 12.0;
+  // The sector it sees out of (deg, counterclockwise from its +x, from ->
+  // to): beams outside it, where its own robot blocks the view, are sent as
+  // no return. Without one, all of the scan.
+  bool has_usable_ = false;
+  double usable_from_ = 0.0, usable_to_ = 0.0;
   std::uint64_t last_sequence_ = 0;
   double last_scan_time_ = -1.0;
   std::uint64_t packets_ = 0;
