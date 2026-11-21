@@ -7,7 +7,9 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <numbers>
 #include <sstream>
+#include <stdexcept>
 
 #include "hwemu/devices/builtin.hpp"
 #include "hwemu/protocol/bytes.hpp"
@@ -28,6 +30,15 @@ void Ld19Lidar::Configure(const DeviceSpec& spec) {
   scan_rate_hz_ = params.Number("scan_rate_hz", 0.0);
   min_range_ = params.Number("min_range", 0.02);
   max_range_ = params.Number("max_range", 12.0);
+  if (params.Has("usable")) {
+    const YAML::Node u = params.Node("usable");
+    if (!u.IsSequence() || u.size() != 2) {
+      throw std::invalid_argument(ctx + " params: 'usable' must be [from, to], degrees counterclockwise");
+    }
+    has_usable_ = true;
+    usable_from_ = u[0].as<double>();
+    usable_to_ = u[1].as<double>();
+  }
 }
 
 void Ld19Lidar::Bind(sim::ISim& sim, Transports& t) {
@@ -45,6 +56,14 @@ void Ld19Lidar::Tick(const SimTime& now) {
   sim::LidarScan scan;
   if (!lidar_->Read(&scan)) return;
   last_sequence_ = seq;
+  if (has_usable_) {
+    const double span = std::fmod(std::fmod(usable_to_ - usable_from_, 360.0) + 360.0, 360.0);
+    for (std::size_t i = 0; i < scan.ranges.size() && i < scan.angles.size(); ++i) {
+      const double deg = static_cast<double>(scan.angles[i]) * 180.0 / std::numbers::pi;
+      const double from_start = std::fmod(std::fmod(deg - usable_from_, 360.0) + 360.0, 360.0);
+      if (from_start > span) scan.ranges[i] = std::numeric_limits<float>::infinity();
+    }
+  }
   double rate = scan_rate_hz_;
   if (rate <= 0.0) {
     rate = last_scan_time_ >= 0.0 && scan.capture_time > last_scan_time_ ? 1.0 / (scan.capture_time - last_scan_time_)

@@ -287,6 +287,41 @@ TEST(Ld19Lidar, PacketsOnThePty) {
   EXPECT_EQ(p->points[0].distance_mm, 1000);  // beam 0, at 0 deg either way
 }
 
+TEST(Ld19Lidar, NoReturnOutsideItsUsableSector) {
+  Rig rig("ld19u");
+  devices::Ld19Lidar lidar;
+  lidar.Configure(Spec(R"({name: ld19u, type: ld19_lidar, transport: {port: ld19u}, bind: {lidar: l},
+                           params: {scan_rate_hz: 10, usable: [-35, 95]}})"));
+  lidar.Bind(rig.sim, rig.transports);
+  const int fd = hwemu_serial_open(lidar.PortPath().c_str());
+  ASSERT_GE(fd, 0);
+  sim::LidarScan scan;
+  for (int i = 0; i < 36; ++i) {
+    scan.ranges.push_back(1.0F);
+    scan.angles.push_back(static_cast<float>(i * 2 * std::numbers::pi / 36));
+  }
+  scan.sequence = 1;
+  rig.sim.SetLidar("l", scan);
+  lidar.Tick(At(1.0));
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  std::vector<std::uint8_t> bytes(4096);
+  const ssize_t n = ::read(fd, bytes.data(), bytes.size());
+  ::close(fd);
+  ASSERT_EQ(n, 3 * 47);
+  // Points go out clockwise from 0: point k is at k * 10 deg clockwise, -k * 10 counterclockwise.
+  std::vector<int> seen;
+  for (int pkt = 0; pkt < 3; ++pkt) {
+    auto p = protocol::ld19::Decode(std::span(bytes).subspan(static_cast<std::size_t>(47 * pkt), 47));
+    ASSERT_TRUE(p);
+    for (const auto& pt : p->points) seen.push_back(pt.distance_mm);
+  }
+  EXPECT_EQ(seen[0], 1000);   // 0 deg
+  EXPECT_EQ(seen[3], 1000);   // -30 deg
+  EXPECT_EQ(seen[4], 0);      // -40 deg: behind the robot
+  EXPECT_EQ(seen[26], 0);     // 100 deg
+  EXPECT_EQ(seen[27], 1000);  // 90 deg
+}
+
 TEST(RealsenseD435, FramesInSharedMemory) {
   Rig rig("d435");
   devices::RealsenseD435 cam;
