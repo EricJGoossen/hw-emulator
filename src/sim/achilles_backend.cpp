@@ -247,6 +247,30 @@ class AchillesSim final : public ISim {
     }
   }
 
+  void SetBodyPose(std::string_view name, const Pose& pose) override {
+    namespace input = achilles::domain::attachment::input;
+    const std::string full(name);
+    const auto slash = full.find('/');
+    if (slash == std::string::npos) {
+      throw UnknownSensor("Achilles: a scripted body names its joint as archetype/joint, not '" + full + "'");
+    }
+    const achilles::domain::JointAddress address{full.substr(0, slash), full.substr(slash + 1)};
+    auto handle = [&] {
+      try {
+        return sim_.State<input::JointPosition>(address);
+      } catch (const std::exception& e) {
+        throw UnknownSensor("Achilles: no joint '" + full + "' to place: " + e.what());
+      }
+    }();
+    // The joint's position is its pose in its parent's frame; a root's
+    // parent is the world.
+    const auto& p = pose.position;
+    const auto& q = pose.orientation;
+    handle.Write(achilles::domain::spatial::Transform<float>(
+        static_cast<float>(p.x), static_cast<float>(p.y), static_cast<float>(p.z), static_cast<float>(q.w),
+        static_cast<float>(q.x), static_cast<float>(q.y), static_cast<float>(q.z)));
+  }
+
   MotorHandle Motor(std::string_view name) override {
     return std::make_shared<class Motor>(Find<aa::DcMotor>(name, "motor"));
   }

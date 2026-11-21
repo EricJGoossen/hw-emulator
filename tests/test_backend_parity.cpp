@@ -8,7 +8,12 @@
 // up, and the limit switch closes at the same angle.
 #include <gtest/gtest.h>
 
+#include <unistd.h>
+#include <yaml-cpp/yaml.h>
+
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <memory>
 #include <string>
@@ -159,6 +164,45 @@ TEST_F(Parity, BothGiveTheSameBodyPose) {
   EXPECT_NEAR(std::abs((qa.w * qm.w) + (qa.x * qm.x) + (qa.y * qm.y) + (qa.z * qm.z)), 1.0, 1e-4);
   EXPECT_THROW((void)achilles.sim->BodyPose("turret/no_such_joint"), hwemu::sim::UnknownSensor);
   EXPECT_THROW((void)mujoco.sim->BodyPose("no_such_body"), hwemu::sim::UnknownSensor);
+}
+
+// A scripted body (the hub's actors) lands where it's placed on both: the
+// turret's welded root on Achilles, an attached mocap box on MuJoCo. A body
+// the physics moves can't be placed on MuJoCo.
+TEST(ParityScripted, BothPlaceAScriptedBody) {
+  const auto dir = std::filesystem::temp_directory_path() / ("hwemu_attach_" + std::to_string(::getpid()));
+  std::filesystem::create_directories(dir);
+  std::ofstream(dir / "box.urdf") << R"(<robot name="box"><link name="block"><inertial><mass value="1"/>)"
+                                     R"(<inertia ixx="0.01" iyy="0.01" izz="0.01" ixy="0" ixz="0" iyz="0"/></inertial>)"
+                                     R"(<collision><geometry><box size="0.1 0.1 0.1"/></geometry></collision></link></robot>)";
+  auto config = hwemu::config::LoadHubConfig(kDir + "sim.yaml", kDir + "devices.yaml");
+  config.sim.display = hwemu::sim::DisplayMode::kHeadless;
+  YAML::Node elements = YAML::Clone(*config.sim.mujoco_elements);
+  elements["dummy"]["type"] = "attach";
+  elements["dummy"]["file"] = (dir / "box.urdf").string();
+  config.sim.mujoco_elements = std::make_shared<YAML::Node>(elements);
+  hwemu::sim::Pose target;
+  target.position = {1.0, 2.0, 0.5};
+  target.orientation = {std::cos(0.15), 0.0, 0.0, std::sin(0.15)};  // 0.3 rad of yaw
+  for (const auto& [backend, body] : {std::pair{Backend::kAchilles, std::string("turret/base")},
+                                      std::pair{Backend::kMujoco, std::string("dummy/block")}}) {
+    SCOPED_TRACE(std::string(hwemu::sim::Name(backend)));
+    config.sim.backend = backend;
+    auto sim = hwemu::sim::CreateSim(config.sim);
+    for (int i = 0; i < 10; ++i) {
+      sim->SetBodyPose(body, target);
+      sim->Step(0.001);
+    }
+    const auto p = sim->BodyPose(body);
+    EXPECT_NEAR(p.position.x, 1.0, 1e-4);
+    EXPECT_NEAR(p.position.y, 2.0, 1e-4);
+    EXPECT_NEAR(p.position.z, 0.5, 1e-4);
+    EXPECT_NEAR(2.0 * std::atan2(p.orientation.z, p.orientation.w), 0.3, 1e-4);
+    EXPECT_THROW(sim->SetBodyPose(backend == Backend::kMujoco ? "no_such_body" : "turret/no_such_joint", target),
+                 hwemu::sim::UnknownSensor);
+    if (backend == Backend::kMujoco) EXPECT_THROW(sim->SetBodyPose("yaw_link", target), std::invalid_argument);
+  }
+  std::filesystem::remove_all(dir);
 }
 
 }  // namespace

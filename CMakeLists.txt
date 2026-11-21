@@ -88,6 +88,7 @@ add_library(hwemu SHARED
     src/devices/stream_devices.cpp
     src/config/config.cpp
     src/hub/hub.cpp
+    src/hub/actor.cpp
 )
 add_library(hwemu::hwemu ALIAS hwemu)
 target_include_directories(hwemu PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")

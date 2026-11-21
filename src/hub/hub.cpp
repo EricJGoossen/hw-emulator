@@ -15,6 +15,7 @@
 #include <sstream>
 
 #include "hwemu/gaps.hpp"
+#include "hwemu/hub/actor.hpp"
 
 namespace hwemu::hub {
 
@@ -74,6 +75,10 @@ void Hub::Start() {
   // answered (or reported as gaps) even with no device using it.
   transports_->PinBus();
   last_draw_ = last_status_ = std::chrono::steady_clock::now();
+  for (const auto& a : config_.actors) {
+    actor_bodies_.push_back(config_.sim.backend == sim::Backend::kMujoco ? a.mujoco : a.achilles);
+  }
+  PlaceActors(clock_->Now().seconds);  // an unknown body or a bad path fails here, not mid-run
   if (config_.truth_log.period > 0.0) {
     truth_body_ = config_.sim.backend == sim::Backend::kMujoco ? config_.truth_log.mujoco : config_.truth_log.achilles;
     (void)sim_->BodyPose(truth_body_);  // an unknown body fails here, not mid-run
@@ -98,6 +103,7 @@ bool Hub::Tick() {
   auto* display = sim_->Display();
   if (display != nullptr) display->ApplyWrites();
   if (display == nullptr || !display->Paused()) {
+    PlaceActors(now.seconds + config_.clock.dt);
     sim_->Step(config_.clock.dt);
   }
   clock_->Advance();
@@ -117,6 +123,12 @@ bool Hub::Tick() {
     std::cerr << StatusReport();
   }
   return !(config_.duration && clock_->Now().seconds >= *config_.duration - 1e-9);
+}
+
+void Hub::PlaceActors(double time) {
+  for (std::size_t i = 0; i < config_.actors.size(); ++i) {
+    sim_->SetBodyPose(actor_bodies_[i], ActorPose(config_.actors[i], time));
+  }
 }
 
 void Hub::LogTruth(double time) {
@@ -148,6 +160,17 @@ void Hub::LogTruth(double time) {
     }
     *truth_ << "}";
   };
+  if (!actor_bodies_.empty()) {
+    *truth_ << ",\"actors\":{";
+    for (std::size_t i = 0; i < actor_bodies_.size(); ++i) {
+      const sim::Pose a = ActorPose(config_.actors[i], time);
+      const auto& o = a.orientation;
+      std::snprintf(line, sizeof(line), "%s\"%s\":[%.6f,%.6f,%.6f]", i == 0 ? "" : ",", config_.actors[i].name.c_str(),
+                    a.position.x, a.position.y, std::remainder(2.0 * std::atan2(o.z, o.w), 2.0 * M_PI));
+      *truth_ << line;
+    }
+    *truth_ << "}";
+  }
   vec3s("gyros", config_.truth_log.gyros, truth_gyros_);
   vec3s("accels", config_.truth_log.accels, truth_accels_);
   *truth_ << "}\n";

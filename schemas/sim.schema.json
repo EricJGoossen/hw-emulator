@@ -53,6 +53,23 @@
     "status_period": {"type": "number", "minimum": 0, "description": "Wall seconds between status lines; 0: none."},
     "truth_log": {"type": "object", "additionalProperties": false, "description": "Ground truth for checking a run: a body's world pose every period of sim time, to <runtime dir>/truth.jsonl.", "properties": {"period": {"type": "number", "exclusiveMinimum": 0, "default": 0.01}, "body": {"type": "object", "additionalProperties": false, "properties": {"achilles": {"type": "string", "description": "An Achilles joint, as archetype/joint"}, "mujoco": {"type": "string", "description": "A MuJoCo body"}}}, "encoders": {"type": "array", "items": {"type": "string"}, "description": "Sim encoders (devices.yaml bind names) whose positions each row also carries, as encoders: {name: position}"}, "gyros": {"type": "array", "items": {"type": "string"}, "description": "Sim gyros whose readings (rad/s, sensor frame) each row also carries, as gyros: {name: [x, y, z]}"}, "accels": {"type": "array", "items": {"type": "string"}, "description": "Sim accelerometers whose readings (m/s^2, sensor frame) each row also carries, as accels: {name: [x, y, z]}"}}},
     "draw_period": {"type": "number", "exclusiveMinimum": 0, "description": "Wall seconds between window draws (default 1/60). A draw runs on the hub's thread."},
+    "actors": {
+      "type": "array",
+      "description": "Scripted bodies the hub places every tick (e.g. an opponent robot): around a closed loop of floor waypoints at a constant speed. The body is a MuJoCo mocap body (an attach element's) or an Achilles welded root joint. Each row of the truth log carries their poses, as actors: {name: [x, y, yaw]}.",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["name", "body", "path"],
+        "properties": {
+          "name": {"type": "string"},
+          "body": {"type": "object", "additionalProperties": false, "properties": {"achilles": {"type": "string", "description": "An Achilles welded root joint, as archetype/joint"}, "mujoco": {"type": "string", "description": "A MuJoCo mocap body"}}},
+          "path": {"type": "array", "minItems": 2, "items": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}, "description": "World [x, y] waypoints (m); the last leg returns to the first"},
+          "z": {"type": "number", "default": 0, "description": "The body's height (m)"},
+          "speed": {"type": "number", "exclusiveMinimum": 0, "default": 1, "description": "m/s along the path"},
+          "spin": {"type": "number", "default": 0, "description": "rad/s it turns at; 0: it faces along the path"},
+          "turn": {"type": "number", "minimum": 0, "default": 0.3, "description": "m over which its heading eases across each waypoint"},
+          "start": {"type": "number", "minimum": 0, "default": 0, "description": "s of sim time it waits at the first waypoint"}
+        }
+      }
+    },
     "windows": {
       "type": "array",
       "description": "Sensor windows to open (displays with sensor_windows: Achilles).",

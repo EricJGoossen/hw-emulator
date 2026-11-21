@@ -5,6 +5,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <array>
 #include <atomic>
 #include <memory>
 #include <thread>
@@ -183,7 +184,18 @@ PYBIND11_MODULE(_hwemu, m) {
             d["orientation"] = py::make_tuple(p.orientation.w, p.orientation.x, p.orientation.y, p.orientation.z);
             return d;
           },
-          py::arg("name"), "Ground truth: a body's world pose (a MuJoCo body; an Achilles archetype/joint).");
+          py::arg("name"), "Ground truth: a body's world pose (a MuJoCo body; an Achilles archetype/joint).")
+      .def(
+          "set_body_pose",
+          [](sim::ISim& s, const std::string& name, std::array<double, 3> position, std::array<double, 4> orientation) {
+            sim::Pose p;
+            p.position = {position[0], position[1], position[2]};
+            p.orientation = {orientation[0], orientation[1], orientation[2], orientation[3]};
+            s.SetBodyPose(name, p);
+          },
+          py::arg("name"), py::arg("position"), py::arg("orientation") = std::array<double, 4>{1, 0, 0, 0},
+          "Places a scripted body (a MuJoCo mocap body; an Achilles welded root joint) for the next step: "
+          "position (x, y, z), orientation (w, x, y, z).");
 
   m.def(
       "make_sim",

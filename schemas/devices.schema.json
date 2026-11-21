@@ -858,7 +858,8 @@
             "camera",
             "lidar",
             "exclude",
-            "joint"
+            "joint",
+            "attach"
           ]
         },
         "joint": {
@@ -1025,6 +1026,19 @@
         "frictionloss": {
           "type": "number",
           "minimum": 0
+        },
+        "file": {
+          "type": "string",
+          "description": "attach: a URDF or MJCF, absolute or relative to the file naming it"
+        },
+        "prefix": {
+          "type": "string",
+          "description": "attach: prefixed to the attached model's names (default: the element's name and /)"
+        },
+        "mocap": {
+          "type": "boolean",
+          "default": true,
+          "description": "attach: the root body is mocap, placed only by the hub's actors"
         }
       },
       "additionalProperties": false,
@@ -1126,6 +1140,20 @@
           "then": {
             "required": [
               "joints"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "attach"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "file"
             ]
           }
         }

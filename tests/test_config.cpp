@@ -52,6 +52,31 @@ TEST(HubConfig, TruthLogIsOffUnlessAskedAndNamesABodyPerBackend) {
   EXPECT_TRUE(config.truth_log.encoders.empty());
 }
 
+TEST(HubConfig, ActorsAreReadWithTheirDefaults) {
+  const auto config = hwemu::config::LoadHubConfig(
+      WriteSimYaml("actors", "actors:\n"
+                             "  - {name: enemy, body: {achilles: enemy/base, mujoco: enemy/base}, path: [[1, 2], [3, 4]],"
+                             " speed: 1.5}\n"
+                             "mujoco:\n  elements:\n    enemy: {type: attach, file: enemy.urdf}\n"),
+      "");
+  ASSERT_EQ(config.actors.size(), 1U);
+  const auto& a = config.actors[0];
+  EXPECT_EQ(a.name, "enemy");
+  EXPECT_EQ(a.achilles, "enemy/base");
+  ASSERT_EQ(a.path.size(), 2U);
+  EXPECT_DOUBLE_EQ(a.path[1][0], 3.0);
+  EXPECT_DOUBLE_EQ(a.speed, 1.5);
+  EXPECT_DOUBLE_EQ(a.spin, 0.0);
+  EXPECT_DOUBLE_EQ(a.z, 0.0);
+  // An attach element's file is relative to the sim.yaml naming it.
+  const auto file = (*config.sim.mujoco_elements)["enemy"]["file"].as<std::string>();
+  EXPECT_TRUE(std::filesystem::path(file).is_absolute()) << file;
+  EXPECT_EQ(std::filesystem::path(file).filename(), "enemy.urdf");
+  EXPECT_THROW((void)hwemu::config::LoadHubConfig(
+                   WriteSimYaml("actors_bad", "actors:\n  - {name: e, body: {}, path: [[1, 2, 3]]}\n"), ""),
+               std::invalid_argument);
+}
+
 TEST(HubConfig, TruthLogCanCarryEncodersAndImus) {
   const auto config = hwemu::config::LoadHubConfig(
       WriteSimYaml("truth2", "truth_log: {encoders: [major_yaw_encoder, pitch], gyros: [g], accels: [a, b]}\n"), "");

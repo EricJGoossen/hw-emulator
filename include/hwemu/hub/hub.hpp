@@ -60,6 +60,9 @@ class Hub {
   std::vector<sim::Vec3Handle> truth_gyros_, truth_accels_;
   double next_truth_ = 0.0;
   void LogTruth(double time);
+  // The actors' bodies, as this backend names them (config_.actors' order).
+  std::vector<std::string> actor_bodies_;
+  void PlaceActors(double time);
   std::chrono::steady_clock::time_point last_draw_, last_status_;
 };
 

@@ -37,6 +37,12 @@
 //             inside the chassis's convex hull)
 //   joint:    joints (an fnmatch pattern), armature, damping, frictionloss --
 //             set on every matching joint
+//   attach:   file (a URDF or MJCF, absolute or relative to the sim's
+//             model), prefix (the element's name and "/"), pos, quat,
+//             mocap (true) -- another model's root body added under the
+//             world, its names prefixed; a mocap one is moved only by
+//             SetBodyPose (the hub's actors). Attached before the other
+//             elements, so they can name its bodies.
 #include <fnmatch.h>
 #include <mujoco/mujoco.h>
 #include <yaml-cpp/yaml.h>
@@ -44,6 +50,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <filesystem>
 #include <limits>
 #include <map>
 #include <memory>
@@ -276,7 +283,12 @@ class MujocoSim final : public ISim {
       }
     }
     int offwidth = 0, offheight = 0;
-    for (const auto& s : specs) AddToSpec(s, &offwidth, &offheight);
+    for (const auto& s : specs) {
+      if (s.type == "attach") Attach(s, options.urdf);
+    }
+    for (const auto& s : specs) {
+      if (s.type != "attach") AddToSpec(s, &offwidth, &offheight);
+    }
     if (offwidth > 0) {
       spec_->visual.global.offwidth = std::max(offwidth, spec_->visual.global.offwidth);
       spec_->visual.global.offheight = std::max(offheight, spec_->visual.global.offheight);
@@ -309,6 +321,7 @@ class MujocoSim final : public ISim {
     if (data_ != nullptr) mj_deleteData(data_);
     if (model_ != nullptr) mj_deleteModel(model_);
     if (spec_ != nullptr) mj_deleteSpec(spec_);
+    for (mjSpec* s : attached_) mj_deleteSpec(s);
   }
 
   Backend GetBackend() const override { return Backend::kMujoco; }
@@ -323,6 +336,21 @@ class MujocoSim final : public ISim {
     }
     mj_forward(model_, data_);  // sensors at the state just reached
     Sample();
+  }
+
+  void SetBodyPose(std::string_view name, const Pose& pose) override {
+    std::lock_guard<std::recursive_mutex> l(*mutex_);
+    const int id = mj_name2id(model_, mjOBJ_BODY, std::string(name).c_str());
+    if (id < 0) throw UnknownSensor("MuJoCo: no body '" + std::string(name) + "' to place");
+    const int m = model_->body_mocapid[id];
+    if (m < 0) {
+      throw std::invalid_argument("MuJoCo: body '" + std::string(name) +
+                                  "' isn't a mocap body (an attach element's), so the physics moves it");
+    }
+    mjtNum* p = data_->mocap_pos + (3 * m);
+    mjtNum* q = data_->mocap_quat + (4 * m);
+    p[0] = pose.position.x, p[1] = pose.position.y, p[2] = pose.position.z;
+    q[0] = pose.orientation.w, q[1] = pose.orientation.x, q[2] = pose.orientation.y, q[3] = pose.orientation.z;
   }
 
   Pose BodyPose(std::string_view name) override {
@@ -394,6 +422,34 @@ class MujocoSim final : public ISim {
     sensor->objtype = objtype;
     mjs_setString(sensor->objname, obj.c_str());
     sensor->noise = noise;
+  }
+
+  // An attach element (see the top of the file): the file's root body, under
+  // a frame on the world.
+  void Attach(const Spec& s, const std::string& model_path) {
+    std::filesystem::path file = s.Text("file");
+    if (file.is_relative()) file = std::filesystem::path(model_path).parent_path() / file;
+    char error[1024] = "";
+    mjSpec* child = mj_parseXML(file.c_str(), nullptr, error, sizeof(error));
+    if (child == nullptr) {
+      throw std::runtime_error("MuJoCo element '" + s.name + "': couldn't load " + file.string() + ": " + error);
+    }
+    attached_.push_back(child);
+    mjsBody* child_world = mjs_findBody(child, "world");
+    mjsElement* first = child_world == nullptr ? nullptr : mjs_firstChild(child_world, mjOBJ_BODY, 0);
+    if (first == nullptr) throw std::invalid_argument("MuJoCo element '" + s.name + "': " + file.string() + " has no body");
+    mjsBody* root = mjs_asBody(first);
+    root->mocap = s.node["mocap"] ? static_cast<mjtByte>(s.node["mocap"].as<bool>()) : 1;
+    const auto pos = s.Vec<3>("pos", {0, 0, 0});
+    const auto quat = s.Vec<4>("quat", {1, 0, 0, 0});
+    std::copy(pos.begin(), pos.end(), root->pos);
+    std::copy(quat.begin(), quat.end(), root->quat);
+    const std::string prefix = s.node["prefix"] ? s.Text("prefix") : s.name + "/";
+    mjsFrame* frame = mjs_addFrame(mjs_findBody(spec_, "world"), nullptr);
+    if (mjs_attachBody(frame, root, prefix.c_str(), "") == nullptr) {
+      throw std::runtime_error("MuJoCo element '" + s.name + "': couldn't attach " + file.string() + ": " +
+                               mjs_getError(spec_));
+    }
   }
 
   void AddToSpec(const Spec& s, int* offwidth, int* offheight) {
@@ -472,7 +528,7 @@ class MujocoSim final : public ISim {
       }
     } else {
       throw std::invalid_argument("MuJoCo element '" + n + "': type must be motor, encoder, gyro, accel, mag, "
-                                  "attitude, switch, camera, lidar, exclude or joint, not '" + s.type + "'");
+                                  "attitude, switch, camera, lidar, exclude, joint or attach, not '" + s.type + "'");
     }
   }
 
@@ -758,6 +814,7 @@ class MujocoSim final : public ISim {
   std::shared_ptr<std::recursive_mutex> mutex_ = std::make_shared<std::recursive_mutex>();
   std::mt19937_64 rng_;
   mjSpec* spec_ = nullptr;
+  std::vector<mjSpec*> attached_;  // attach elements' models, kept until the sim goes
   mjModel* model_ = nullptr;
   mjData* data_ = nullptr;
 

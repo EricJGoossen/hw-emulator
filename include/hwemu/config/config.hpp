@@ -10,6 +10,7 @@
 // copies of these live in the otto and mcb repos; this repo ships only the
 // schemas, the presets (presets/) and an example.
 
+#include <array>
 #include <optional>
 #include <string>
 #include <vector>
@@ -48,6 +49,22 @@ struct TruthLogSpec {
   std::vector<std::string> accels;
 };
 
+// A scripted body the hub moves (hub/actor.hpp): around a closed loop of
+// floor waypoints at a constant speed. The body is named per backend as
+// ISim::SetBodyPose takes it: a MuJoCo mocap body (an attach element's), an
+// Achilles welded root joint (archetype/joint).
+struct ActorSpec {
+  std::string name;
+  std::string achilles;
+  std::string mujoco;
+  std::vector<std::array<double, 2>> path;  // m, world x y; the last leg returns to the first point
+  double z = 0.0;                           // m, the body's height
+  double speed = 1.0;                       // m/s along the path
+  double spin = 0.0;                        // rad/s; 0: it faces along the path
+  double turn = 0.3;                        // m: the heading eases across each waypoint over this
+  double start = 0.0;                       // s of sim time it waits at path[0]
+};
+
 struct HubConfig {
   sim::SimOptions sim;
   clock::ClockOptions clock;
@@ -58,6 +75,7 @@ struct HubConfig {
   //   extern "C" void hwemu_register_devices(hwemu::devices::DeviceRegistry*);
   std::vector<std::string> plugins;
   std::vector<WindowSpec> windows;
+  std::vector<ActorSpec> actors;
   std::optional<double> duration;  // sim seconds; run until stopped if unset
   double status_period = 0.0;      // wall seconds between status lines; 0: none
   // Wall seconds between window draws. A draw runs on the hub's thread, in

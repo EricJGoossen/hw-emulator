@@ -131,7 +131,16 @@ HubConfig LoadHubConfig(const std::string& sim_yaml, const std::string& devices_
     if (achilles["integrator"]) config.sim.integrator = achilles["integrator"].as<std::string>();
   }
   if (const auto mujoco = root["mujoco"]) {
-    if (mujoco["elements"]) config.sim.mujoco_elements = std::make_shared<YAML::Node>(mujoco["elements"]);
+    if (mujoco["elements"]) {
+      // An attach element's file, relative to this file.
+      YAML::Node elements = YAML::Clone(mujoco["elements"]);
+      for (auto kv : elements) {
+        if (kv.second["type"] && kv.second["type"].as<std::string>() == "attach" && kv.second["file"]) {
+          kv.second["file"] = RelativeTo(sim_yaml, kv.second["file"].as<std::string>());
+        }
+      }
+      config.sim.mujoco_elements = std::make_shared<YAML::Node>(elements);
+    }
   }
   if (root["runtime_dir"]) config.runtime_dir = root["runtime_dir"].as<std::string>();
   config.clock.shm_name = "hwemu_clock";
@@ -160,6 +169,25 @@ HubConfig LoadHubConfig(const std::string& sim_yaml, const std::string& devices_
     for (const auto& e : t["encoders"]) config.truth_log.encoders.push_back(e.as<std::string>());
     for (const auto& g : t["gyros"]) config.truth_log.gyros.push_back(g.as<std::string>());
     for (const auto& a : t["accels"]) config.truth_log.accels.push_back(a.as<std::string>());
+  }
+  for (const auto& a : root["actors"]) {
+    ActorSpec spec;
+    spec.name = a["name"].as<std::string>();
+    if (const auto b = a["body"]) {
+      if (b["achilles"]) spec.achilles = b["achilles"].as<std::string>();
+      if (b["mujoco"]) spec.mujoco = b["mujoco"].as<std::string>();
+    }
+    for (const auto& p : a["path"]) {
+      const auto xy = p.as<std::vector<double>>();
+      if (xy.size() != 2) throw std::invalid_argument(sim_yaml + ": actor '" + spec.name + "': each path point is [x, y]");
+      spec.path.push_back({xy[0], xy[1]});
+    }
+    if (a["z"]) spec.z = a["z"].as<double>();
+    if (a["speed"]) spec.speed = a["speed"].as<double>();
+    if (a["spin"]) spec.spin = a["spin"].as<double>();
+    if (a["turn"]) spec.turn = a["turn"].as<double>();
+    if (a["start"]) spec.start = a["start"].as<double>();
+    config.actors.push_back(spec);
   }
   for (const auto& w : root["windows"]) {
     WindowSpec spec;

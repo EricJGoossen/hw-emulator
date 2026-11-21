@@ -194,6 +194,14 @@ class ISim {
   // an unknown name.
   virtual Pose BodyPose(std::string_view name) = 0;
 
+  // Places a scripted body (the hub's actors): one the physics doesn't move,
+  // whose world pose this sets for the next step -- a MuJoCo mocap body, an
+  // Achilles welded root joint (archetype/joint). It isn't given a velocity,
+  // so what it touches meets it as a static body. Throws UnknownSensor for an
+  // unknown name, and on MuJoCo std::invalid_argument for a body that isn't
+  // mocap (on Achilles, a free joint written this way is teleported).
+  virtual void SetBodyPose(std::string_view name, const Pose& pose) = 0;
+
   // Null when headless.
   virtual display::IDisplay* Display() = 0;
 };
